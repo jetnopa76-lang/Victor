@@ -22,6 +22,7 @@ app.use('/api/tiers',     require('./routes/tiers'));
 app.use('/api/estimates', require('./routes/estimates'));
 app.use('/api/orders',    require('./routes/orders'));
 app.use('/api/invoices',  require('./routes/invoices'));
+app.use('/api/pricing',   require('./routes/pricing'));
 
 // Health check
 app.get('/api/health', async (req, res) => {
