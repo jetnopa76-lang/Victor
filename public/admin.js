@@ -1,405 +1,130 @@
-// Victor — Auth & Admin Panel
-(function() {
+// Victor Admin Panel — no auth
+var _ms=null,_mc=null,_nuf=false;
 
-var currentUser = null;
+function _e(s){return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+async function _a(m,p,b){var o={method:m,headers:{'Content-Type':'application/json'}};if(b)o.body=JSON.stringify(b);var r=await fetch(p,o);return r.json();}
 
-var ROLE_TABS = {
-  admin:      ['estimator','estimates','customers','orders','invoices'],
-  sales:      ['estimator','estimates','customers','orders'],
-  production: ['orders'],
-  accounting: ['invoices']
-};
-
-window.applyRoleTabs=function applyRoleTabs(role) {
-  var allowed = ROLE_TABS[role] || ROLE_TABS.sales;
-  document.querySelectorAll('.nav-tab').forEach(function(tab) {
-    var fn = tab.getAttribute('onclick') || '';
-    var m = fn.match(/showPage\('(\w+)'/);
-    if (!m) return;
-    var tabId = m[1];
-    tab.style.display = (role === 'admin' || allowed.indexOf(tabId) >= 0) ? '' : 'none';
-  });
-}
-
-window.lockAndHide=function lockAndHide() {
-  currentUser = null;
-  // Hide all tabs
-  document.querySelectorAll('.nav-tab').forEach(function(t){ t.style.display = 'none'; });
-  // Hide admin button
-  var ag = document.getElementById('adminGearBtn');
-  if (ag) ag.style.display = 'none';
-  // Clear badge
-  var b = document.getElementById('userBadge');
-  if (b) b.textContent = '';
-  // Show PIN
-  document.getElementById('pinOverlay').style.display = 'flex';
-  setTimeout(function(){ document.getElementById('pinInput').focus(); }, 100);
-}
-
-// ── STYLES ────────────────────────────────────────────────────────
-function injectStyles() {
-  if (document.getElementById('admin-styles')) return;
-  var s = document.createElement('style');
-  s.id = 'admin-styles';
-  s.textContent = `
-    #pinOverlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:10000;display:none;align-items:center;justify-content:center}
-    #pinBox{background:#fff;border-radius:16px;padding:2rem;max-width:340px;width:90%;text-align:center}
-    #pinBox h3{font-size:18px;font-weight:500;margin-bottom:4px}
-    #pinBox p{font-size:13px;color:#888;margin-bottom:20px}
-    #pinInput{width:100%;height:48px;font-size:24px;text-align:center;letter-spacing:8px;border:2px solid #ddd;border-radius:10px;outline:none;margin-bottom:12px;padding:0 12px}
-    #pinInput:focus{border-color:#1a1a18}
-    #pinError{color:#a32d2d;font-size:12px;min-height:16px;margin-bottom:8px}
-    #pinSubmit{width:100%;height:44px;background:#1a1a18;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:500;cursor:pointer}
-    #adminOverlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.45);z-index:9995;display:none;align-items:flex-start;justify-content:center;padding:20px 0;overflow-y:auto}
-    #adminWindow{background:#fff;border-radius:16px;width:95%;max-width:900px;margin:auto;overflow:hidden;top:10px;position:relative}
-    .adm-header{background:#1a1a18;color:#fff;padding:12px 16px;display:flex;align-items:center;justify-content:space-between}
-    .adm-body{display:grid;grid-template-columns:200px 1fr;min-height:500px}
-    .adm-sidebar{background:#f9f8f6;border-right:1px solid #e0ded8;padding:12px}
-    .adm-nav{padding:8px 10px;border-radius:8px;cursor:pointer;font-size:13px;color:#666;margin-bottom:2px;display:flex;align-items:center;gap:8px}
-    .adm-nav:hover{background:#f0efec}
-    .adm-nav.active{background:#1a1a18;color:#fff}
-    .adm-main{padding:20px;overflow-y:auto;max-height:70vh}
-    .user-card{background:#f9f8f6;border-radius:10px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between}
-    .role-badge{display:inline-block;font-size:11px;padding:2px 8px;border-radius:20px;font-weight:500;margin-left:8px}
-    .role-admin{background:#1a1a18;color:#fff}
-    .role-sales{background:#EAF3DE;color:#27500A}
-    .role-production{background:#E6F1FB;color:#0C447C}
-    .role-accounting{background:#FFF3DC;color:#7A4A00}
-    .adm-btn{padding:6px 14px;border-radius:7px;border:1px solid #ddd;background:#fff;font-size:12px;cursor:pointer;font-weight:500}
-    .adm-btn-primary{background:#1a1a18;color:#fff;border-color:#1a1a18}
-    .adm-btn-danger{color:#a32d2d;border-color:#f0c8c8}
-    .adm-field{margin-bottom:12px}
-    .adm-field label{font-size:12px;color:#666;display:block;margin-bottom:3px}
-    .adm-field input,.adm-field select{width:100%;height:34px;padding:0 10px;border:1px solid #ddd;border-radius:8px;font-size:13px}
-    .g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-    .item-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #f5f5f3}
-    .item-row .name{flex:1;font-size:13px}
-  `;
+// Inject styles
+(function(){
+  if(document.getElementById('_admStyles'))return;
+  var s=document.createElement('style');s.id='_admStyles';
+  s.textContent='#_adm{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9990;display:none;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto}#_admW{background:#f5f4f2;border-radius:20px;width:100%;max-width:960px;margin:auto;overflow:hidden;min-height:300px}._admTop{background:#1a1a18;color:#fff;padding:12px 18px;display:flex;align-items:center;justify-content:space-between}._admTop h2{font-size:15px;font-weight:500;margin:0}._admX{background:none;border:none;color:#888;font-size:20px;cursor:pointer}._admHome{padding:20px;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}._card{background:#fff;border-radius:14px;padding:18px 14px;cursor:pointer;border:1px solid #e8e6e2;text-align:center;transition:all .15s}._card:hover{transform:translateY(-2px);box-shadow:0 8px 20px rgba(0,0,0,.1);border-color:#1a1a18}._ci{font-size:26px;margin-bottom:8px}._cl{font-size:13px;font-weight:500;color:#1a1a18}._cd{font-size:11px;color:#888;margin-top:3px}._sec{padding:20px}._bc{display:flex;align-items:center;gap:8px;margin-bottom:18px;font-size:13px}._back{background:#fff;border:1px solid #e0ded8;border-radius:8px;padding:5px 12px;cursor:pointer;font-size:12px;font-weight:500}._lc{background:#fff;border-radius:12px;border:1px solid #e8e6e2;overflow:hidden}._li{display:flex;align-items:center;padding:11px 14px;border-bottom:1px solid #f0efec;gap:10px}._li:last-child{border-bottom:none}._ln{flex:1;font-size:13px;font-weight:500}._ls{font-size:11px;color:#888;margin-top:2px}._addrow{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}._addrow input{flex:1;min-width:100px;height:36px;padding:0 10px;border:1px solid #e0ded8;border-radius:8px;font-size:13px;outline:none}._form{background:#fff;border-radius:12px;border:1px solid #e8e6e2;padding:14px;margin-bottom:14px}._form h4{font-size:14px;font-weight:500;margin:0 0 12px}._fg{display:grid;grid-template-columns:1fr 1fr;gap:10px}._ff{display:flex;flex-direction:column;gap:3px}._ff label{font-size:10px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.04em}._ff input,._ff select{height:34px;padding:0 10px;border:1px solid #e0ded8;border-radius:8px;font-size:13px;outline:none}._fa{display:flex;gap:8px;margin-top:12px}._btn{background:#1a1a18;color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:13px;font-weight:500;cursor:pointer}._btnG{background:none;border:1px solid #e0ded8;border-radius:8px;padding:7px 14px;font-size:13px;cursor:pointer}._btnD{background:none;border:1px solid #f0c8c8;border-radius:8px;padding:5px 10px;font-size:12px;cursor:pointer;color:#c0392b}._ml{display:grid;grid-template-columns:180px 1fr;gap:14px}._mc{padding:9px 10px;border-radius:10px;cursor:pointer;font-size:13px;color:#666;border:1px solid transparent;display:flex;align-items:center;justify-content:space-between;background:#fff;margin-bottom:3px}._mc:hover{background:#f5f4f2}._mca{background:#1a1a18!important;color:#fff!important}._mr{display:grid;grid-template-columns:1fr 90px 80px 70px 28px;gap:5px;align-items:center;padding:6px 10px;border-bottom:1px solid #f5f5f3}._mr input{height:28px;padding:0 6px;border:1px solid #e0ded8;border-radius:6px;font-size:12px;width:100%;outline:none}';
   document.head.appendChild(s);
-}
-
-// ── MODALS HTML ───────────────────────────────────────────────────
-function injectHTML() {
-  if (document.getElementById('pinOverlay')) return;
-  document.body.insertAdjacentHTML('beforeend', `
-    <div id="pinOverlay">
-      <div id="pinBox">
-        <h3>🔒 Victor</h3>
-        <p>Enter your PIN to continue</p>
-        <input id="pinInput" type="password" maxlength="8" placeholder="••••" onkeydown="if(event.key==='Enter')submitPin()">
-        <div id="pinError"></div>
-        <button id="pinSubmit" onclick="submitPin()">Sign in</button>
-        <button onclick="skipPin()" style="margin-top:8px;width:100%;height:36px;background:none;border:1px solid #ddd;border-radius:10px;font-size:13px;color:#888;cursor:pointer">Continue without signing in</button>
-      </div>
-    </div>
-    <div id="adminOverlay">
-      <div id="adminWindow">
-        <div class="adm-header">
-          <span style="font-size:14px;font-weight:500">⚙ Admin settings</span>
-          <button onclick="closeAdmin()" style="background:none;border:none;color:#aaa;font-size:20px;cursor:pointer">&times;</button>
-        </div>
-        <div class="adm-body">
-          <div class="adm-sidebar" id="admSidebar"></div>
-          <div class="adm-main" id="admMain"></div>
-        </div>
-      </div>
-    </div>
-  `);
-}
-
-// ── PIN AUTH ──────────────────────────────────────────────────────
-window.submitPin = async function() {
-  var pin = document.getElementById('pinInput').value;
-  if (!pin) return;
-  document.getElementById('pinError').textContent = '';
-  try {
-    var r = await fetch('/api/users/login', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({pin: pin})
-    });
-    var data = await r.json();
-    if (!r.ok) {
-      document.getElementById('pinError').textContent = 'Invalid PIN';
-      document.getElementById('pinInput').value = '';
-      return;
-    }
-    currentUser = data;
-    document.getElementById('pinOverlay').style.display = 'none';
-    document.getElementById('pinInput').value = '';
-    applyRoleTabs(data.role);
-    updateUserDisplay();
-    if (typeof toast === 'function') toast('Welcome, ' + data.name + '!');
-  } catch(e) {
-    document.getElementById('pinError').textContent = 'Connection error';
-  }
-};
-
-window.skipPin = function() {
-  document.getElementById('pinOverlay').style.display = 'none';
-  document.querySelectorAll('.nav-tab').forEach(function(t){ t.style.display=''; });
-};
-
-function updateUserDisplay() {
-  var badge = document.getElementById('userBadge');
-  var adminBtn = document.getElementById('adminGearBtn');
-  if (badge && currentUser) badge.textContent = currentUser.name;
-  if (adminBtn) adminBtn.style.display = currentUser && currentUser.role === 'admin' ? '' : 'none';
-}
-
-window.openAdmin = function() {
-  injectHTML();
-  renderAdmSidebar();
-  renderAdmSection('users');
-  document.getElementById('adminOverlay').style.display = 'flex';
-};
-
-window.closeAdmin = function() {
-  document.getElementById('adminOverlay').style.display = 'none';
-};
-
-// ── ADMIN SIDEBAR ─────────────────────────────────────────────────
-var admSection = 'users';
-
-function renderAdmSidebar() {
-  var items = [
-    {id:'users',    icon:'👥', label:'Users'},
-    {id:'pricing',  icon:'💲', label:'Pricing Library'},
-    {id:'stages',   icon:'📋', label:'Production Stages'},
-    {id:'tiers',    icon:'🏷', label:'Pricing Tiers'},
-    {id:'reps',     icon:'👤', label:'Sales Reps'},
-    {id:'business', icon:'🏢', label:'Business Settings'},
-  ];
-  document.getElementById('admSidebar').innerHTML = items.map(function(i){
-    return '<div class="adm-nav'+(admSection===i.id?' active':'')+'" onclick="renderAdmSection(\''+i.id+'\')">'+i.icon+' '+i.label+'</div>';
-  }).join('');
-}
-
-window.renderAdmSection = async function(sec) {
-  admSection = sec;
-  renderAdmSidebar();
-  var main = document.getElementById('admMain');
-  main.innerHTML = '<div style="color:#aaa;font-size:13px">Loading...</div>';
-  if      (sec==='users')    await renderUsers(main);
-  else if (sec==='pricing')  { closeAdmin(); openPricingLibrary(); }
-  else if (sec==='stages')   await renderStages(main);
-  else if (sec==='tiers')    await renderTiers(main);
-  else if (sec==='reps')     await renderReps(main);
-  else if (sec==='business') renderBusiness(main);
-};
-
-// ── USERS ─────────────────────────────────────────────────────────
-async function renderUsers(main) {
-  var r = await fetch('/api/users');
-  var users = await r.json();
-  main.innerHTML =
-    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">'+
-      '<div style="font-size:15px;font-weight:500">Users</div>'+
-      '<button class="adm-btn adm-btn-primary" onclick="showNewUserForm()">+ Add user</button>'+
-    '</div>'+
-    '<div id="newUserForm"></div>'+
-    users.map(function(u){
-      return '<div class="user-card">'+
-        '<div><strong>'+u.name+'</strong><span class="role-badge role-'+u.role+'">'+u.role+'</span></div>'+
-        '<div style="display:flex;gap:6px">'+
-          '<button class="adm-btn" onclick="resetPin('+u.id+')">Reset PIN</button>'+
-          (u.id!==1?'<button class="adm-btn adm-btn-danger" onclick="deleteUser('+u.id+')">Delete</button>':'')+
-        '</div>'+
-      '</div>';
-    }).join('');
-}
-
-window.showNewUserForm = function() {
-  document.getElementById('newUserForm').innerHTML =
-    '<div style="background:#f0efec;border-radius:10px;padding:14px;margin-bottom:16px">'+
-      '<div class="g2">'+
-        '<div class="adm-field"><label>Name</label><input id="nu_name" type="text" placeholder="Full name"></div>'+
-        '<div class="adm-field"><label>PIN</label><input id="nu_pin" type="password" placeholder="4-8 digits" maxlength="8"></div>'+
-        '<div class="adm-field"><label>Role</label><select id="nu_role">'+
-          '<option value="admin">Admin</option>'+
-          '<option value="sales" selected>Sales</option>'+
-          '<option value="production">Production</option>'+
-          '<option value="accounting">Accounting</option>'+
-        '</select></div>'+
-      '</div>'+
-      '<div style="display:flex;gap:8px">'+
-        '<button class="adm-btn adm-btn-primary" onclick="createUser()">Create</button>'+
-        '<button class="adm-btn" onclick="document.getElementById(\'newUserForm\').innerHTML=\'\'">Cancel</button>'+
-      '</div>'+
-    '</div>';
-};
-
-window.createUser = async function() {
-  var name=document.getElementById('nu_name').value.trim();
-  var pin=document.getElementById('nu_pin').value;
-  var role=document.getElementById('nu_role').value;
-  if(!name||!pin){alert('Name and PIN required');return;}
-  await fetch('/api/users',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,role,pin})});
-  renderAdmSection('users');
-};
-
-window.resetPin = function(id) {
-  var pin=prompt('New PIN:');
-  if(!pin)return;
-  fetch('/api/users/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({pin})})
-    .then(function(){if(typeof toast==='function')toast('PIN updated!');});
-};
-
-window.deleteUser = async function(id) {
-  if(!confirm('Delete user?'))return;
-  await fetch('/api/users/'+id,{method:'DELETE'});
-  renderAdmSection('users');
-};
-
-// ── STAGES ────────────────────────────────────────────────────────
-async function renderStages(main) {
-  var r=await fetch('/api/orders/stages');
-  var stages=await r.json();
-  main.innerHTML=
-    '<div style="font-size:15px;font-weight:500;margin-bottom:12px">Production Stages</div>'+
-    stages.map(function(s){
-      return '<div class="item-row"><div class="name">'+s.name+'</div>'+
-        '<button class="adm-btn adm-btn-danger" onclick="deleteStage('+s.id+')">Delete</button></div>';
-    }).join('')+
-    '<div style="display:flex;gap:8px;margin-top:12px">'+
-      '<input id="newStage" type="text" placeholder="Stage name" style="flex:1;height:34px;padding:0 10px;border:1px solid #ddd;border-radius:8px;font-size:13px">'+
-      '<button class="adm-btn adm-btn-primary" onclick="addStage()">Add</button>'+
-    '</div>';
-}
-window.addStage=async function(){
-  var name=document.getElementById('newStage').value.trim();if(!name)return;
-  await fetch('/api/orders/stages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
-  renderAdmSection('stages');
-};
-window.deleteStage=async function(id){
-  if(!confirm('Delete stage?'))return;
-  await fetch('/api/orders/stages/'+id,{method:'DELETE'});
-  renderAdmSection('stages');
-};
-
-// ── TIERS ─────────────────────────────────────────────────────────
-async function renderTiers(main) {
-  var r=await fetch('/api/tiers');
-  var tiers=await r.json();
-  main.innerHTML=
-    '<div style="font-size:15px;font-weight:500;margin-bottom:12px">Pricing Tiers</div>'+
-    tiers.map(function(t){
-      return '<div class="item-row"><div class="name"><strong>'+t.name+'</strong> — '+t.discount_pct+'% off</div>'+
-        '<button class="adm-btn adm-btn-danger" onclick="deleteTier('+t.id+')">Delete</button></div>';
-    }).join('')+
-    '<div style="display:grid;grid-template-columns:1fr 100px auto;gap:8px;margin-top:12px">'+
-      '<input id="newTierName" type="text" placeholder="Tier name" style="height:34px;padding:0 10px;border:1px solid #ddd;border-radius:8px;font-size:13px">'+
-      '<input id="newTierPct" type="number" placeholder="%" min="0" style="height:34px;padding:0 10px;border:1px solid #ddd;border-radius:8px;font-size:13px">'+
-      '<button class="adm-btn adm-btn-primary" onclick="addTier()">Add</button>'+
-    '</div>';
-}
-window.addTier=async function(){
-  var name=document.getElementById('newTierName').value.trim();
-  var pct=document.getElementById('newTierPct').value;
-  if(!name)return;
-  await fetch('/api/tiers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,discount_pct:parseFloat(pct)||0})});
-  renderAdmSection('tiers');
-};
-window.deleteTier=async function(id){
-  if(!confirm('Delete tier?'))return;
-  await fetch('/api/tiers/'+id,{method:'DELETE'});
-  renderAdmSection('tiers');
-};
-
-// ── REPS ──────────────────────────────────────────────────────────
-async function renderReps(main) {
-  var r=await fetch('/api/reps');
-  var reps=await r.json();
-  main.innerHTML=
-    '<div style="font-size:15px;font-weight:500;margin-bottom:12px">Sales Reps</div>'+
-    reps.map(function(r){
-      return '<div class="item-row"><div class="name"><strong>'+r.name+'</strong>'+(r.email?' · '+r.email:'')+' · '+r.commission_pct+'% comm</div>'+
-        '<button class="adm-btn adm-btn-danger" onclick="deleteRep('+r.id+')">Delete</button></div>';
-    }).join('')+
-    '<div style="display:grid;grid-template-columns:1fr 1fr 80px auto;gap:8px;margin-top:12px">'+
-      '<input id="newRepName" type="text" placeholder="Name" style="height:34px;padding:0 10px;border:1px solid #ddd;border-radius:8px;font-size:13px">'+
-      '<input id="newRepEmail" type="email" placeholder="Email" style="height:34px;padding:0 10px;border:1px solid #ddd;border-radius:8px;font-size:13px">'+
-      '<input id="newRepComm" type="number" placeholder="%" min="0" style="height:34px;padding:0 10px;border:1px solid #ddd;border-radius:8px;font-size:13px">'+
-      '<button class="adm-btn adm-btn-primary" onclick="addRep()">Add</button>'+
-    '</div>';
-}
-window.addRep=async function(){
-  var name=document.getElementById('newRepName').value.trim();
-  var email=document.getElementById('newRepEmail').value.trim();
-  var comm=document.getElementById('newRepComm').value;
-  if(!name)return;
-  await fetch('/api/reps',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,email,commission_pct:parseFloat(comm)||0})});
-  renderAdmSection('reps');
-};
-window.deleteRep=async function(id){
-  if(!confirm('Delete rep?'))return;
-  await fetch('/api/reps/'+id,{method:'DELETE'});
-  renderAdmSection('reps');
-};
-
-// ── BUSINESS SETTINGS ─────────────────────────────────────────────
-function renderBusiness(main) {
-  var s=JSON.parse(localStorage.getItem('victorSettings')||'{}');
-  main.innerHTML=
-    '<div style="font-size:15px;font-weight:500;margin-bottom:16px">Business Settings</div>'+
-    '<div class="g2">'+
-      '<div class="adm-field"><label>Company name</label><input id="bs_name" value="'+(s.companyName||'')+'" placeholder="Your company"></div>'+
-      '<div class="adm-field"><label>Phone</label><input id="bs_phone" value="'+(s.phone||'')+'" placeholder="(555) 555-5555"></div>'+
-      '<div class="adm-field"><label>Email</label><input id="bs_email" type="email" value="'+(s.email||'')+'" placeholder="info@company.com"></div>'+
-      '<div class="adm-field"><label>Address</label><input id="bs_addr" value="'+(s.address||'')+'" placeholder="123 Main St"></div>'+
-      '<div class="adm-field"><label>Default tax rate (%)</label><input id="bs_tax" type="number" value="'+(s.defaultTax||0)+'" min="0" step="0.1"></div>'+
-      '<div class="adm-field"><label>Default margin (%)</label><input id="bs_margin" type="number" value="'+(s.defaultMargin||40)+'" min="0" max="100"></div>'+
-    '</div>'+
-    '<button class="adm-btn adm-btn-primary" onclick="saveBiz()">Save</button>';
-}
-window.saveBiz=function(){
-  localStorage.setItem('victorSettings',JSON.stringify({
-    companyName:document.getElementById('bs_name').value,
-    phone:document.getElementById('bs_phone').value,
-    email:document.getElementById('bs_email').value,
-    address:document.getElementById('bs_addr').value,
-    defaultTax:parseFloat(document.getElementById('bs_tax').value)||0,
-    defaultMargin:parseFloat(document.getElementById('bs_margin').value)||40
-  }));
-  if(typeof toast==='function')toast('Saved!');
-};
-
-// ── NAV BUTTONS ───────────────────────────────────────────────────
-function injectNavButtons() {
-  if (document.getElementById('lockBtn')) return;
-  var nav = document.querySelector('nav');
-  if (!nav) return;
-  var wrapper = document.createElement('div');
-  wrapper.style.cssText = 'display:flex;align-items:center;gap:6px;margin-left:8px';
-  wrapper.innerHTML =
-    '<span id="userBadge" style="font-size:12px;color:#666"></span>'+
-    '<button id="adminGearBtn" onclick="openAdmin()" style="display:none;background:none;border:1px solid #ddd;color:#1a1a18;border-radius:8px;padding:4px 10px;font-size:12px;cursor:pointer">⚙ Admin</button>'+
-    '<button id="lockBtn" onclick="lockAndHide()" style="background:none;border:1px solid #ddd;color:#1a1a18;border-radius:8px;padding:4px 10px;font-size:12px;cursor:pointer">🔒</button>';
-  var statusDiv = nav.querySelector('.nav-status');
-  if (statusDiv) statusDiv.parentNode.insertBefore(wrapper, statusDiv);
-  else nav.appendChild(wrapper);
-  // Remove pricing library button from nav
-  setTimeout(function(){
-    var pl = document.getElementById('pricingLibBtn');
-    if (pl) pl.remove();
-  }, 500);
-}
-
-// Init
-injectStyles();
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', function(){
-    injectHTML();
-    injectNavButtons();
-    // Hide all tabs until login
-    document.querySelectorAll('.nav-tab').forEach(function(t){ t.style.display='none'; });
-  });
-} else {
-  injectHTML();
-  injectNavButtons();
-  setTimeout(function(){
-    document.querySelectorAll('.nav-tab').forEach(function(t){ t.style.display='none'; });
-  }, 100);
-}
-
 })();
+
+// Inject modal HTML
+(function(){
+  if(document.getElementById('_adm'))return;
+  document.body.insertAdjacentHTML('beforeend','<div id="_adm"><div id="_admW"><div class="_admTop"><h2 id="_admTitle">Admin settings</h2><button class="_admX" onclick="document.getElementById(\'_adm\').style.display=\'none\'">&times;</button></div><div id="_admC"></div></div></div>');
+})();
+
+// Inject Admin button into nav
+function _injectAdmBtn(){
+  if(document.getElementById('_admNavBtn'))return;
+  var nav=document.querySelector('nav');
+  if(!nav)return;
+  var btn=document.createElement('button');
+  btn.id='_admNavBtn';
+  btn.textContent='⚙ Admin';
+  btn.style.cssText='background:none;border:1px solid #e0ded8;color:#1a1a18;border-radius:8px;padding:4px 10px;font-size:12px;cursor:pointer;font-weight:500;margin-left:8px';
+  btn.onclick=function(){openAdmin();};
+  var st=nav.querySelector('.nav-status');
+  if(st)nav.insertBefore(btn,st);else nav.appendChild(btn);
+  // Remove old pricing library button
+  setTimeout(function(){var pl=document.getElementById('pricingLibBtn');if(pl)pl.remove();},500);
+}
+
+if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',_injectAdmBtn);}
+else{_injectAdmBtn();setTimeout(_injectAdmBtn,500);}
+
+// Open admin
+function openAdmin(){
+  _admHome();
+  document.getElementById('_adm').style.display='flex';
+}
+window.openAdmin=openAdmin;
+
+function _admHome(){
+  _ms=null;
+  document.getElementById('_admTitle').textContent='Admin settings';
+  var cards=[
+    {id:'users',    i:'👥',l:'Users',           d:'Manage users & PINs'},
+    {id:'materials',i:'📦',l:'Materials',        d:'Paper, media, substrates'},
+    {id:'pricing',  i:'💲',l:'Pricing Library',  d:'Process rates & costs'},
+    {id:'stages',   i:'📋',l:'Prod. Stages',     d:'Kanban columns'},
+    {id:'tiers',    i:'🏷',l:'Pricing Tiers',    d:'Customer discounts'},
+    {id:'reps',     i:'👤',l:'Sales Reps',       d:'Commission rates'},
+    {id:'business', i:'🏢',l:'Business',         d:'Company info & defaults'},
+  ];
+  document.getElementById('_admC').innerHTML='<div class="_admHome">'+cards.map(function(c){return '<div class="_card" onclick="_goS(\''+c.id+'\')"><div class="_ci">'+c.i+'</div><div class="_cl">'+c.l+'</div><div class="_cd">'+c.d+'</div></div>';}).join('')+'</div>';
+}
+
+async function _goS(s){
+  _ms=s;
+  document.getElementById('_admC').innerHTML='<div style="padding:40px;text-align:center;color:#aaa">Loading...</div>';
+  if(s==='users')await _rUsers();
+  else if(s==='materials')await _rMats();
+  else if(s==='pricing'){document.getElementById('_adm').style.display='none';if(typeof openPricingLibrary==='function')openPricingLibrary();}
+  else if(s==='stages')await _rStages();
+  else if(s==='tiers')await _rTiers();
+  else if(s==='reps')await _rReps();
+  else if(s==='business')_rBiz();
+}
+
+function _bc(l){return '<div class="_bc"><button class="_back" onclick="_admHome()">← Back</button><span style="color:#aaa">/</span><span style="font-weight:500">'+l+'</span></div>';}
+
+// USERS
+async function _rUsers(){
+  document.getElementById('_admTitle').textContent='Users';
+  var u=await _a('GET','/api/users');
+  var rb={admin:'background:#1a1a18;color:#fff',sales:'background:#EAF3DE;color:#27500A',production:'background:#E6F1FB;color:#0C447C',accounting:'background:#FFF3DC;color:#7A4A00'};
+  var form=_nuf?'<div class="_form"><h4>New user</h4><div class="_fg"><div class="_ff"><label>Name</label><input id="_nu_n" type="text"></div><div class="_ff"><label>PIN</label><input id="_nu_p" type="password" maxlength="8"></div><div class="_ff" style="grid-column:span 2"><label>Role</label><select id="_nu_r"><option value="admin">Admin</option><option value="sales" selected>Sales</option><option value="production">Production</option><option value="accounting">Accounting</option></select></div></div><div class="_fa"><button class="_btn" onclick="_cUser()">Create</button><button class="_btnG" onclick="_nuf=false;_rUsers()">Cancel</button></div></div>':'';
+  document.getElementById('_admC').innerHTML='<div class="_sec">'+_bc('Users')+form+'<div class="_lc">'+u.map(function(x){return '<div class="_li"><div style="flex:1"><div class="_ln">'+_e(x.name)+'</div><div class="_ls"><span style="display:inline-block;font-size:11px;padding:1px 7px;border-radius:20px;font-weight:500;'+(rb[x.role]||rb.admin)+'">'+x.role+'</span></div></div><button class="_btnG" style="font-size:12px;margin-right:6px" onclick="_rPin('+x.id+',\''+_e(x.name)+'\')">Reset PIN</button>'+(x.id!==1?'<button class="_btnD" onclick="_dUser('+x.id+')">Del</button>':'')+'</div>';}).join('')+'</div>'+(!_nuf?'<div class="_addrow"><button class="_btn" onclick="_nuf=true;_rUsers()">+ Add user</button></div>':'')+'</div>';
+}
+async function _cUser(){var n=document.getElementById('_nu_n').value.trim(),p=document.getElementById('_nu_p').value,r=document.getElementById('_nu_r').value;if(!n||!p){alert('Name and PIN required');return;}await _a('POST','/api/users',{name:n,role:r,pin:p});_nuf=false;_rUsers();}
+function _rPin(id,name){var p=prompt('New PIN for '+name+':');if(!p)return;_a('PUT','/api/users/'+id,{pin:p}).then(function(){if(typeof toast==='function')toast('PIN updated!');});}
+async function _dUser(id){if(!confirm('Delete?'))return;await _a('DELETE','/api/users/'+id);_rUsers();}
+
+// MATERIALS
+async function _rMats(){
+  document.getElementById('_admTitle').textContent='Materials';
+  var cats=await _a('GET','/api/materials/categories');
+  if(!_mc&&cats.length)_mc=cats[0].id;
+  var sel=cats.find(function(c){return c.id==_mc;});
+  var items=_mc?await _a('GET','/api/materials?category_id='+_mc):[];
+  var ML={per_sqft:'per sq ft',per_sheet:'per sheet',per_unit:'per unit',per_click:'per click',per_lb:'per lb'};
+  var cH=cats.map(function(c){var a=c.id==_mc;return '<div class="_mc'+(a?' _mca':'')+'" onclick="_sMC('+c.id+')"><span>'+_e(c.name)+'</span><button style="background:none;border:none;cursor:pointer;font-size:14px;color:'+(a?'#aaa':'#ddd')+';padding:0" onclick="event.stopPropagation();_dMC('+c.id+')">×</button></div>';}).join('')+'<button onclick="_aMC()" style="width:100%;margin-top:6px;padding:8px;border:2px dashed #ddd;border-radius:8px;background:none;font-size:12px;color:#378ADD;cursor:pointer">+ Add category</button>';
+  var iH='<div style="color:#aaa;font-size:13px;padding:10px 0">Select a category</div>';
+  if(sel){
+    iH='<div style="margin-bottom:12px"><div style="font-size:15px;font-weight:600">'+_e(sel.name)+'</div><div style="font-size:12px;color:#888;margin-top:2px">Priced <select onchange="_uMC('+sel.id+',this.value)" style="font-size:12px;border:1px solid #ddd;border-radius:5px;padding:1px 5px">'+Object.keys(ML).map(function(m){return '<option value="'+m+'"'+(m===sel.pricing_method?' selected':'')+'>'+ML[m]+'</option>';}).join('')+'</select></div></div>'+
+    (items.length?'<div class="_lc" style="margin-bottom:8px"><div style="display:grid;grid-template-columns:1fr 90px 80px 70px 28px;gap:5px;padding:6px 10px;border-bottom:1px solid #e8e6e2"><span style="font-size:10px;color:#aaa;text-transform:uppercase">Name</span><span style="font-size:10px;color:#aaa;text-transform:uppercase">SKU</span><span style="font-size:10px;color:#aaa;text-transform:uppercase">Cost</span><span style="font-size:10px;color:#aaa;text-transform:uppercase">Unit</span><span></span></div>'+items.map(function(x){return '<div class="_mr"><input value="'+_e(x.name)+'" onchange="_uM('+x.id+',\'name\',this.value)"><input value="'+_e(x.sku||'')+'" placeholder="SKU" onchange="_uM('+x.id+',\'sku\',this.value)"><input type="number" value="'+parseFloat(x.cost).toFixed(4)+'" step="0.0001" style="text-align:right" onchange="_uM('+x.id+',\'cost\',this.value)"><input value="'+_e(x.unit||'')+'" placeholder="unit" onchange="_uM('+x.id+',\'unit\',this.value)"><button style="background:none;border:none;cursor:pointer;color:#ccc;font-size:15px;padding:0" onclick="_dM('+x.id+')">×</button></div>';}).join('')+'</div>':'<div style="color:#aaa;font-size:13px;padding:10px 0">No items yet.</div>')+
+    '<button onclick="_aM('+_mc+')" style="font-size:13px;color:#378ADD;background:none;border:none;cursor:pointer;padding:6px 0;font-weight:500">+ Add '+_e(sel.name)+' item</button>';
+  }
+  document.getElementById('_admC').innerHTML='<div class="_sec">'+_bc('Materials')+'<div class="_ml"><div>'+cH+'</div><div>'+iH+'</div></div></div>';
+}
+async function _sMC(id){_mc=id;_rMats();}
+async function _aMC(){var n=prompt('Category name:');if(!n)return;var mm={'1':'per_sqft','2':'per_sheet','3':'per_unit','4':'per_click','5':'per_lb'};var k=prompt('Pricing:\n1=per sq ft\n2=per sheet\n3=per unit\n4=per click\n5=per lb','1');var c=await _a('POST','/api/materials/categories',{name:n,pricing_method:mm[k]||'per_sqft'});_mc=c.id;_rMats();}
+async function _dMC(id){if(!confirm('Delete category?'))return;await _a('DELETE','/api/materials/categories/'+id);_mc=null;_rMats();}
+async function _uMC(id,m){await _a('PUT','/api/materials/categories/'+id,{pricing_method:m});_rMats();}
+async function _aM(cid){await _a('POST','/api/materials',{category_id:cid,name:'New item',cost:0,unit:''});_rMats();}
+async function _uM(id,f,v){var b={};b[f]=f==='cost'?parseFloat(v)||0:v;await _a('PUT','/api/materials/'+id,b);}
+async function _dM(id){if(!confirm('Delete?'))return;await _a('DELETE','/api/materials/'+id);_rMats();}
+
+// STAGES
+async function _rStages(){document.getElementById('_admTitle').textContent='Production Stages';var s=await _a('GET','/api/orders/stages');document.getElementById('_admC').innerHTML='<div class="_sec">'+_bc('Production Stages')+'<div class="_lc">'+s.map(function(x){return '<div class="_li"><div class="_ln">'+_e(x.name)+'</div><button class="_btnD" onclick="_dStage('+x.id+')">Delete</button></div>';}).join('')+'</div><div class="_addrow"><input id="_ns" type="text" placeholder="Stage name"><button class="_btn" onclick="_aStage()">Add</button></div></div>';}
+async function _aStage(){var n=document.getElementById('_ns').value.trim();if(!n)return;await _a('POST','/api/orders/stages',{name:n});_rStages();}
+async function _dStage(id){if(!confirm('Delete?'))return;await _a('DELETE','/api/orders/stages/'+id);_rStages();}
+
+// TIERS
+async function _rTiers(){document.getElementById('_admTitle').textContent='Pricing Tiers';var t=await _a('GET','/api/tiers');document.getElementById('_admC').innerHTML='<div class="_sec">'+_bc('Pricing Tiers')+'<div class="_lc">'+t.map(function(x){return '<div class="_li"><div style="flex:1"><div class="_ln">'+_e(x.name)+'</div><div class="_ls">'+x.discount_pct+'% off</div></div><button class="_btnD" onclick="_dTier('+x.id+')">Delete</button></div>';}).join('')+'</div><div class="_addrow"><input id="_nt" type="text" placeholder="Tier name"><input id="_ntp" type="number" placeholder="%" min="0" style="max-width:80px"><button class="_btn" onclick="_aTier()">Add</button></div></div>';}
+async function _aTier(){var n=document.getElementById('_nt').value.trim();if(!n)return;await _a('POST','/api/tiers',{name:n,discount_pct:parseFloat(document.getElementById('_ntp').value)||0});_rTiers();}
+async function _dTier(id){if(!confirm('Delete?'))return;await _a('DELETE','/api/tiers/'+id);_rTiers();}
+
+// REPS
+async function _rReps(){document.getElementById('_admTitle').textContent='Sales Reps';var r=await _a('GET','/api/reps');document.getElementById('_admC').innerHTML='<div class="_sec">'+_bc('Sales Reps')+'<div class="_lc">'+r.map(function(x){return '<div class="_li"><div style="flex:1"><div class="_ln">'+_e(x.name)+'</div><div class="_ls">'+(x.email||'')+(x.commission_pct?' · '+x.commission_pct+'% comm':'')+'</div></div><button class="_btnD" onclick="_dRep('+x.id+')">Delete</button></div>';}).join('')+'</div><div class="_addrow"><input id="_nr" type="text" placeholder="Name"><input id="_nre" type="email" placeholder="Email"><input id="_nrc" type="number" placeholder="%" min="0" style="max-width:70px"><button class="_btn" onclick="_aRep()">Add</button></div></div>';}
+async function _aRep(){var n=document.getElementById('_nr').value.trim();if(!n)return;await _a('POST','/api/reps',{name:n,email:document.getElementById('_nre').value,commission_pct:parseFloat(document.getElementById('_nrc').value)||0});_rReps();}
+async function _dRep(id){if(!confirm('Delete?'))return;await _a('DELETE','/api/reps/'+id);_rReps();}
+
+// BUSINESS
+function _rBiz(){document.getElementById('_admTitle').textContent='Business Settings';var s=JSON.parse(localStorage.getItem('victorSettings')||'{}');document.getElementById('_admC').innerHTML='<div class="_sec">'+_bc('Business Settings')+'<div class="_form"><h4>Company</h4><div class="_fg"><div class="_ff"><label>Name</label><input id="_bn" value="'+_e(s.companyName||'')+'" placeholder="Company name"></div><div class="_ff"><label>Phone</label><input id="_bp" value="'+_e(s.phone||'')+'" placeholder="(555) 555-5555"></div><div class="_ff"><label>Email</label><input id="_be" type="email" value="'+_e(s.email||'')+'" placeholder="info@co.com"></div><div class="_ff"><label>Address</label><input id="_ba" value="'+_e(s.address||'')+'" placeholder="123 Main St"></div></div></div><div class="_form"><h4>Defaults</h4><div class="_fg"><div class="_ff"><label>Tax rate (%)</label><input id="_bt" type="number" value="'+(s.defaultTax||0)+'" min="0" step="0.1"></div><div class="_ff"><label>Margin (%)</label><input id="_bm" type="number" value="'+(s.defaultMargin||40)+'" min="0" max="100"></div></div></div><button class="_btn" onclick="_sBiz()">Save settings</button></div>';}
+function _sBiz(){localStorage.setItem('victorSettings',JSON.stringify({companyName:document.getElementById('_bn').value,phone:document.getElementById('_bp').value,email:document.getElementById('_be').value,address:document.getElementById('_ba').value,defaultTax:parseFloat(document.getElementById('_bt').value)||0,defaultMargin:parseFloat(document.getElementById('_bm').value)||40}));if(typeof toast==='function')toast('Saved!');}
