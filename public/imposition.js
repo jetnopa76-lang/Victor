@@ -90,14 +90,24 @@ async function populateDropdowns() {
       const r = await fetch('/api/materials');
       const all = await r.json();
       _wfMaterials = (Array.isArray(all) ? all : []).filter(function(m) {
-        return m.category_name === 'Wide Format Media';
+        return m.category_name && m.category_name.indexOf('Wide Format') === 0;
       });
-      ipMedia.innerHTML = '<option value="">— Select material —</option>' +
-        _wfMaterials.map(function(m) {
+      var groups = {};
+      _wfMaterials.forEach(function(m){
+        var k = m.category_name || 'Other';
+        (groups[k] = groups[k] || []).push(m);
+      });
+      var html = '<option value="">— Select material —</option>';
+      Object.keys(groups).sort().forEach(function(cat){
+        html += '<optgroup label="' + cat + '">';
+        groups[cat].forEach(function(m){
           var label = (m.sku ? m.sku + ' — ' : '') + (m.name || '');
           var sz = m.width_in ? ' (' + Number(m.width_in) + '")' : '';
-          return '<option value="' + m.id + '">' + label + sz + '</option>';
-        }).join('');
+          html += '<option value="' + m.id + '">' + label + sz + '</option>';
+        });
+        html += '</optgroup>';
+      });
+      ipMedia.innerHTML = html;
       ipMedia.onchange = function() {
         var mat = _wfMaterials.find(function(x) { return String(x.id) === String(ipMedia.value); });
         if (mat) {
