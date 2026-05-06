@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>Victor</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f3;color:#1a1a18;min-height:100vh}
+/* NAV */
+.nav{display:flex;align-items:center;gap:0;background:#fff;border-bottom:1px solid #e0ded8;padding:0 1.5rem;height:52px}
+.nav-brand{font-size:15px;font-weight:500;margin-right:2rem;color:#1a1a18}
+.nav-tab{font-size:13px;padding:0 14px;height:52px;display:flex;align-items:center;border-bottom:2px solid transparent;cursor:pointer;color:#888;border:none;background:none;white-space:nowrap}
+.nav-tab.active{color:#1a1a18;border-bottom:2px solid #1a1a18;font-weight:500}
+.nav-status{margin-left:auto;font-size:12px;color:#aaa;display:flex;align-items:center;gap:6px}
+.dot{width:7px;height:7px;border-radius:50%;background:#aaa;display:inline-block}
+.dot.ok{background:#27500A}
+.dot.err{background:#a32d2d}
+/* PAGES */
+.page{display:none;padding:1.5rem;max-width:1200px;margin:0 auto}
+.page.active{display:block}
+/* UTILS */
+h2{font-size:18px;font-weight:500;margin-bottom:1.25rem}
+.toolbar{display:flex;gap:10px;align-items:center;margin-bottom:1.25rem;flex-wrap:wrap}
+.toolbar input[type=text],.toolbar select{height:34px;font-size:13px;padding:0 10px;border:1px solid #ddd;border-radius:8px;background:#fff;color:#1a1a18;outline:none}
+.toolbar input[type=text]{width:220px}
+.toolbar input:focus,.toolbar select:focus{border-color:#378ADD}
+.btn{font-size:12px;font-weight:500;padding:7px 14px;border-radius:8px;border:1px solid #ddd;background:transparent;color:#1a1a18;cursor:pointer;white-space:nowrap}
+.btn:hover{background:#f0efec}
+.btn-primary{background:#1a1a18;color:#fff;border-color:transparent}
+.btn-primary:hover{background:#333}
+.btn-sm{font-size:11px;padding:4px 10px}
+.btn-danger{border-color:#f0c8c8;color:#a32d2d}
+.btn-danger:hover{background:#fcebeb}
+.btn-blue{border-color:#b5d4f4;color:#0C447C}
+.btn-blue:hover{background:#E6F1FB}
+/* TABLE */
+.tbl-wrap{background:#fff;border:1px solid #e0ded8;border-radius:12px;overflow:hidden}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead th{font-size:10px;text-transform:uppercase;letter-spacing:0.06em;color:#aaa;padding:10px 14px;text-align:left;border-bottom:1px solid #e0ded8;font-weight:500;background:#f9f8f6}
+tbody tr{border-bottom:1px solid #f0efec}
+tbody tr:last-child{border-bottom:none}
+tbody tr:hover{background:#fafaf9}
+td{padding:10px 14px;color:#1a1a18;vertical-align:middle}
+td.muted{color:#888;font-size:12px}
+.actions{display:flex;gap:6px}
+/* BADGES */
+.badge{display:inline-block;font-size:10px;padding:2px 8px;border-radius:20px;font-weight:500}
+.b-active{background:#EAF3DE;color:#27500A}
+.b-inactive{background:#F1EFE8;color:#444441}
+.b-draft{background:#F1EFE8;color:#444441}
+.b-sent{background:#E6F1FB;color:#0C447C}
+.b-approved{background:#EAF3DE;color:#27500A}
+.b-declined{background:#FCEBEB;color:#A32D2D}
+.b-partial{background:#FAEEDA;color:#633806}
+.b-paid{background:#EAF3DE;color:#27500A}
+.b-overdue{background:#FCEBEB;color:#A32D2D}
+.b-void{background:#F1EFE8;color:#888}
+.b-unpaid{background:#FCEBEB;color:#A32D2D}
+.b-deposit{background:#FAEEDA;color:#633806}
+#kanbanBoard{min-height:400px}
+.b-draft{background:#F1EFE8;color:#444441}
+.b-sent{background:#E6F1FB;color:#0C447C}
+.b-approved{background:#EAF3DE;color:#27500A}
+.b-declined{background:#FCEBEB;color:#A32D2D}
+/* MODAL */
+.modal-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:200;align-items:flex-start;justify-content:center;padding-top:60px;overflow-y:auto}
+.modal-backdrop.open{display:flex}
+.modal{background:#fff;border-radius:14px;border:1px solid #e0ded8;width:100%;max-width:580px;max-height:85vh;overflow-y:auto;padding:1.5rem}
+.modal h3{font-size:16px;font-weight:500;margin-bottom:1.25rem}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.form-grid.cols1{grid-template-columns:1fr}
+.form-grid.cols3{grid-template-columns:1fr 1fr 1fr}
+.field{display:flex;flex-direction:column;gap:4px}
+.field label{font-size:11px;color:#888;font-weight:500;text-transform:uppercase;letter-spacing:0.05em}
+.field input,.field select,.field textarea{font-size:13px;padding:6px 10px;border:1px solid #ddd;border-radius:8px;background:#fff;color:#1a1a18;outline:none;height:32px}
+.field textarea{height:64px;resize:vertical}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:#378ADD}
+.modal-footer{display:flex;gap:8px;margin-top:1.25rem;padding-top:1rem;border-top:1px solid #f0efec}
+.section-head{font-size:10px;font-weight:500;color:#aaa;text-transform:uppercase;letter-spacing:0.07em;margin:1.25rem 0 0.75rem;padding-bottom:6px;border-bottom:1px solid #f0efec}
+/* STATS ROW */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:1.5rem}
+.stat{background:#fff;border:1px solid #e0ded8;border-radius:10px;padding:12px 14px}
+.stat-label{font-size:10px;color:#aaa;text-transform:uppercase;letter-spacing:0.05em}
+.stat-val{font-size:22px;font-weight:500;color:#1a1a18;margin-top:2px}
+/* EMPTY */
+.empty-row td{text-align:center;color:#aaa;padding:2.5rem!important}
+/* TOAST */
+.toast{position:fixed;bottom:24px;right:24px;background:#1a1a18;color:#fff;font-size:13px;padding:10px 18px;border-radius:10px;z-index:999;opacity:0;transform:translateY(8px);transition:all 0.2s;pointer-events:none}
+.toast.show{opacity:1;transform:translateY(0)}
+/* ESTIMATOR LAYOUT (embedded) */
+.est-layout{display:grid;grid-template-columns:320px 1fr;gap:1.25rem;align-items:start}
+.est-sidebar{background:#fff;border:1px solid #e0ded8;border-radius:12px;overflow:hidden}
+.est-sidebar-tabs{display:flex;border-bottom:1px solid #e0ded8}
+.estab{flex:1;font-size:11px;padding:9px 4px;cursor:pointer;border:none;background:none;color:#888;border-bottom:2px solid transparent}
+.estab.active{color:#1a1a18;border-bottom-color:#1a1a18;font-weight:500}
+.est-sp{padding:1rem}
+.sec-label{font-size:10px;font-weight:500;color:#aaa;text-transform:uppercase;letter-spacing:0.07em;margin:1rem 0 0.4rem}
+.sec-label:first-child{margin-top:0}
+.ef{margin-bottom:8px}
+.ef label{font-size:12px;color:#666;display:block;margin-bottom:3px}
+.ef select,.ef input[type=number],.ef input[type=text],.ef textarea{width:100%;font-size:13px;padding:5px 8px;border:1px solid #ddd;border-radius:7px;background:#fff;color:#1a1a18;outline:none}
+.ef select,.ef input[type=number],.ef input[type=text]{height:30px}
+.ef textarea{resize:vertical;min-height:56px;padding:6px 8px;line-height:1.5}
+.ef select:focus,.ef input:focus,.ef textarea:focus{border-color:#378ADD}
+.r2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
+.mg-row{display:flex;align-items:center;gap:8px}
+.mg-row input[type=range]{flex:1;accent-color:#1a1a18}
+.mg-val{font-size:13px;font-weight:500;min-width:36px;text-align:right;color:#1a1a18}
+.est-main{display:flex;flex-direction:column;gap:1rem}
+.metric-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.metric{background:#fff;border:1px solid #e0ded8;border-radius:8px;padding:10px 12px}
+.metric-label{font-size:10px;color:#aaa;text-transform:uppercase;letter-spacing:0.05em}
+.metric-val{font-size:18px;font-weight:500;color:#1a1a18;margin-top:2px}
+.est-card{background:#fff;border:1px solid #e0ded8;border-radius:12px;padding:1.25rem}
+.est-hdr{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:1rem;margin-bottom:1rem;border-bottom:1px solid #e0ded8}
+.bd-table{width:100%;border-collapse:collapse;font-size:13px}
+.bd-table tr{border-top:1px solid #f0efec}
+.bd-table tr:first-child{border-top:none}
+.bd-table td{padding:7px 0;color:#666}
+.bd-table td:last-child{text-align:right;color:#1a1a18;font-weight:500}
+.bd-table .total-row td{font-weight:500;border-top:1px solid #ddd}
+.bd-table .grand-row td{font-size:15px;font-weight:500;color:#1a1a18;border-top:2px solid #1a1a18;padding-top:10px}
+.tag{display:inline-block;font-size:10px;padding:2px 7px;border-radius:20px;margin-right:4px}
+.tag-d{background:#E6F1FB;color:#0C447C}
+.tag-w{background:#EAF3DE;color:#27500A}
+.pp-item{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #f0efec}
+.pp-item:last-child{border-bottom:none}
+.pp-check{width:15px;height:15px;cursor:pointer;accent-color:#1a1a18}
+.pp-name{flex:1;font-size:12px;color:#1a1a18}
+.pp-cost{font-size:11px;color:#888;min-width:46px;text-align:right}
+.add-pp-form{background:#f9f8f6;border-radius:8px;padding:10px;margin-top:10px;border:1px solid #e0ded8}
+.rate-tbl{width:100%;border-collapse:collapse;font-size:12px}
+.rate-tbl th{font-size:10px;color:#aaa;text-transform:uppercase;letter-spacing:.06em;padding:3px 5px;text-align:left;border-bottom:1px solid #e0ded8}
+.rate-tbl td{padding:3px 5px;border-bottom:1px solid #f0efec;color:#1a1a18}
+.rate-tbl input{height:24px;font-size:12px;padding:2px 5px;border:1px solid #ddd;border-radius:5px;width:80px}
+.comm-preview{background:#f9f8f6;border-radius:8px;padding:8px 10px;margin-bottom:8px;display:none;justify-content:space-between;align-items:center}
+.tier-banner{background:#E6F1FB;border:1px solid #b5d4f4;border-radius:8px;padding:8px 12px;font-size:12px;color:#0C447C;margin-bottom:10px;display:none}
+.notes-box{margin-top:1rem;background:#fffdf5;border:1px solid #f0e8c8;border-radius:8px;padding:10px 12px;font-size:13px;color:#555;line-height:1.6}
+.nbx-lbl{font-size:10px;font-weight:500;color:#aaa;text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <span class="nav-brand">Victor</span>
+  <button class="nav-tab active" onclick="showPage('estimator',this)">Estimator</button>
+  <button class="nav-tab" onclick="showPage('estimates',this)">Estimates</button>
+  <button class="nav-tab" onclick="showPage('customers',this)">Customers</button>
+  <button class="nav-tab" onclick="showPage('orders',this)">Orders</button>
+  <button class="nav-tab" onclick="showPage('invoices',this)">Invoices / AR</button>
+  <div class="nav-status"><span class="dot" id="dbDot"></span><span id="dbStatus">Connecting...</span></div>
+</nav>
+
+<!-- ===================== ESTIMATOR PAGE ===================== -->
+<div class="page active" id="page-estimator">
+  <div class="est-layout">
+    <div class="est-sidebar">
+      <div class="est-sidebar-tabs">
+        <button class="estab active" onclick="switchESTab('job',this)">Job</button>
+                              </div>
+
+      <div id="estab-job" class="est-sp">
+        <div class="sec-label">Customer</div>
+        <div class="ef">
+          <label>Select customer</label>
+          <select id="customerSel" onchange="onCustomerChange()">
+            <option value="">— Walk-in / no customer —</option>
+          </select>
+        </div>
+        <div class="tier-banner" id="tierBanner"></div>
+
+        <div class="sec-label">Job info</div>
+        <div class="ef"><label>Job name</label><input type="text" id="jobName" value="New estimate" oninput="calc()"></div>
+        <div class="ef"><label>Job type</label>
+          <select id="jobType" onchange="toggleJobType();calc()">
+            <option value="digital">Digital printing</option>
+            <option value="wide">Wide format</option>
+          </select>
+        </div>
+
+        <!-- Hidden inputs keep calc() working — values set by imposition modal -->
+        <div style="display:none">
+          <input type="number" id="qty" value="250" min="1" oninput="calc()">
+          <input type="number" id="sides" value="1" min="1" max="2" oninput="calc()">
+          <select id="paperSize" onchange="calc()">
+            <option value="letter">Letter 8.5×11"</option>
+            <option value="legal">Legal 8.5×14"</option>
+            <option value="tabloid">Tabloid 11×17"</option>
+            <option value="a4">A4</option>
+          </select>
+          <select id="colorMode" onchange="calc()">
+            <option value="color">Full color</option>
+            <option value="bw">Black &amp; white</option>
+          </select>
+          <select id="stockSel" onchange="calc()"></select>
+          <select id="mediaSel" onchange="calc()"></select>
+          <input type="number" id="wfQty" value="1" min="1" oninput="calc()">
+          <input type="number" id="imp_sw" value="54" step="0.125" oninput="calc()">
+          <input type="number" id="imp_sh" value="1200" step="1" oninput="calc()">
+          <input type="number" id="imp_fw" value="24" step="0.125" oninput="calc()">
+          <input type="number" id="imp_fh" value="36" step="0.125" oninput="calc()">
+          <input type="number" id="imp_costSqft" value="0.00" step="0.01">
+          <input type="number" id="imp_bleed" value="0.125" step="0.0625">
+          <input type="number" id="imp_gripper" value="0.5" step="0.0625">
+          <input type="number" id="imp_gutter" value="0.125" step="0.0625">
+          <input type="number" id="imp_rolls" value="1" min="1">
+          <input type="number" id="wfW" value="24">
+          <input type="number" id="wfH" value="36">
+        </div>
+
+        
+
+        <div class="sec-label">Pricing</div>
+        <div class="ef">
+          <label>Profit margin</label>
+          <div class="mg-row">
+            <input type="range" id="marginSlider" min="0" max="80" value="35" step="1" oninput="document.getElementById('marginDisplay').textContent=this.value+'%';calc()">
+            <span class="mg-val" id="marginDisplay">35%</span>
+          </div>
+        </div>
+        <div class="ef"><label>Rush fee</label>
+          <select id="rushFee" onchange="calc()">
+            <option value="0">None</option>
+            <option value="0.15">15% — next day</option>
+            <option value="0.25">25% — same day</option>
+            <option value="0.5">50% — few hours</option>
+          </select>
+        </div>
+        <div class="ef"><label>Tax rate (%)</label>
+          <input type="number" id="taxRate" value="0" min="0" max="30" step="0.1" oninput="calc()">
+        </div>
+
+        <div class="sec-label">Sales rep</div>
+        <div class="r2" style="margin-bottom:6px">
+          <div><label style="font-size:12px;color:#666;display:block;margin-bottom:3px">Rep</label>
+            <select id="repSel" onchange="onRepChange();calc()">
+              <option value="">— None —</option>
+            </select>
+          </div>
+          <div><label style="font-size:12px;color:#666;display:block;margin-bottom:3px">Commission (%)</label>
+            <input type="number" id="commPct" value="0" min="0" max="50" step="0.5" oninput="calc()">
+          </div>
+        </div>
+        <div class="comm-preview" id="commPreview">
+          <span style="font-size:12px;color:#666" id="commPreviewLabel">Commission</span>
+          <span style="font-size:13px;font-weight:500" id="commPreviewAmt">$0.00</span>
+        </div>
+
+        <div class="sec-label">Notes</div>
+        <div class="ef"><textarea id="jobNotes" placeholder="Special instructions..." oninput="calc()"></textarea></div>
+
+        <div style="display:flex;gap:8px;margin-top:1rem">
+          <button class="btn btn-primary" style="flex:1" onclick="saveEstimate()">Save estimate</button>
+          <button class="btn" onclick="clearJob()">Clear</button>
+        </div>
+      </div>
+
+      <div id="estab-stocks" class="est-sp" style="display:none">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div class="sec-label" style="margin:0">Digital stocks</div>
+          <button class="btn btn-sm" onclick="openStockModal('digital',null)">+ Add</button>
+        </div>
+        <div id="digitalStockList" style="margin-top:8px"></div>
+        <div style="height:1px;background:#e0ded8;margin:12px 0"></div>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div class="sec-label" style="margin:0">Wide format media</div>
+          <button class="btn btn-sm" onclick="openStockModal('wide',null)">+ Add</button>
+        </div>
+        <div id="wideStockList" style="margin-top:8px"></div>
+        <!-- stock modal -->
+        <div id="stockModalOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.35);z-index:300;align-items:flex-start;justify-content:center;padding-top:60px">
+          <div style="background:#fff;border-radius:12px;border:1px solid #e0ded8;padding:1.25rem;width:300px;max-height:85vh;overflow-y:auto">
+            <div style="font-size:15px;font-weight:500;margin-bottom:1rem" id="stockModalTitle">Add stock</div>
+            <div class="ef"><label>Stock name</label><input type="text" id="sm_name" placeholder="e.g. Gloss 80lb"></div>
+            <div class="ef"><label>Vendor</label><input type="text" id="sm_vendor" placeholder="e.g. Sappi"></div>
+            <div id="sm_digital_fields">
+              <div class="ef"><label>Sheet size</label>
+                <select id="sm_size" onchange="toggleSmCustom()">
+                  <option value="letter">Letter 8.5×11"</option><option value="legal">Legal 8.5×14"</option>
+                  <option value="tabloid">Tabloid 11×17"</option><option value="a4">A4</option><option value="custom">Custom</option>
+                </select>
+              </div>
+              <div id="sm_custom_size" style="display:none">
+                <div class="r2"><div><label style="font-size:12px;color:#666;display:block;margin-bottom:3px">W (in)</label><input type="number" id="sm_w" value="8.5" step=".25" min="1"></div><div><label style="font-size:12px;color:#666;display:block;margin-bottom:3px">H (in)</label><input type="number" id="sm_h" value="11" step=".25" min="1"></div></div>
+              </div>
+              <div class="r2">
+                <div><label style="font-size:12px;color:#666;display:block;margin-bottom:3px">Weight</label><input type="text" id="sm_weight" placeholder="80lb text"></div>
+                <div><label style="font-size:12px;color:#666;display:block;margin-bottom:3px">Finish</label><select id="sm_finish"><option value="uncoated">Uncoated</option><option value="gloss">Gloss</option><option value="matte">Matte</option><option value="satin">Satin</option></select></div>
+              </div>
+              <div class="r2">
+                <div><label style="font-size:12px;color:#666;display:block;margin-bottom:3px">Vendor cost/sheet</label><input type="number" id="sm_vendorCost" value="0.0100" step="0.001" min="0" oninput="smCalc()"></div>
+                <div><label style="font-size:12px;color:#666;display:block;margin-bottom:3px">Markup %</label><input type="number" id="sm_markup" value="0" step="1" min="0" oninput="smCalc()"></div>
+              </div>
+              <div style="background:#f9f8f6;border-radius:7px;padding:7px 10px;margin-bottom:8px;display:flex;justify-content:space-between">
+                <span style="font-size:12px;color:#666">Sell/sheet</span><span style="font-size:13px;font-weight:500" id="sm_sellPrev">$0.0100</span>
+              </div>
+            </div>
+            <div id="sm_wide_fields" style="display:none">
+              <div class="r2">
+                <div><label style="font-size:12px;color:#666;display:block;margin-bottom:3px">Roll width</label><input type="number" id="sm_rollW" value="54" step="1" min="1"></div>
+                <div><label style="font-size:12px;color:#666;display:block;margin-bottom:3px">Print width</label><input type="number" id="sm_printW" value="52" step="1" min="1"></div>
+              </div>
+              <div class="r2">
+                <div><label style="font-size:12px;color:#666;display:block;margin-bottom:3px">Vendor cost/sqft</label><input type="number" id="sm_wVendorCost" value="0.500" step="0.01" min="0" oninput="smCalcW()"></div>
+                <div><label style="font-size:12px;color:#666;display:block;margin-bottom:3px">Markup %</label><input type="number" id="sm_wMarkup" value="0" step="1" min="0" oninput="smCalcW()"></div>
+              </div>
+              <div style="background:#f9f8f6;border-radius:7px;padding:7px 10px;margin-bottom:8px;display:flex;justify-content:space-between">
+                <span style="font-size:12px;color:#666">Sell/sqft</span><span style="font-size:13px;font-weight:500" id="sm_wSellPrev">$0.500</span>
+              </div>
+            </div>
+            <div class="ef"><label>Notes / SKU</label><input type="text" id="sm_notes" placeholder="Optional"></div>
+            <div style="display:flex;gap:8px;margin-top:8px">
+              <button class="btn btn-primary btn-sm" style="flex:1" onclick="saveStockModal()">Save</button>
+              <button class="btn btn-sm" onclick="document.getElementById('stockModalOverlay').style.display='none'">Cancel</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="estab-postpress" class="est-sp" style="display:none">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div class="sec-label" style="margin:0">Post-press</div>
+          <button class="btn btn-sm" onclick="showAddPP()">+ Add</button>
+        </div>
+        <div id="ppList" style="margin-top:8px"></div>
+        <div id="addPPForm" class="add-pp-form" style="display:none;margin-top:10px">
+          <div class="ef"><label>Process name</label><input type="text" id="newPPName" placeholder="e.g. UV coating"></div>
+          <div class="r2">
+            <div><label style="font-size:12px;color:#666;display:block;margin-bottom:3px">Method</label><select id="newPPMethod"><option value="flat">Flat fee</option><option value="per_unit">Per unit</option><option value="per_sqft">Per sq ft</option><option value="per_side">Per side</option></select></div>
+            <div><label style="font-size:12px;color:#666;display:block;margin-bottom:3px">Rate ($)</label><input type="number" id="newPPRate" value="0.10" step="0.01" min="0"></div>
+          </div>
+          <div class="r2" style="margin-bottom:8px">
+            <div><label style="font-size:12px;color:#666;display:block;margin-bottom:3px">Min charge</label><input type="number" id="newPPMin" value="0" step="0.01" min="0"></div>
+            <div><label style="font-size:12px;color:#666;display:block;margin-bottom:3px">Applies to</label><select id="newPPType"><option value="both">Both</option><option value="digital">Digital</option><option value="wide">Wide format</option></select></div>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-primary btn-sm" onclick="saveNewPP()">Add</button>
+            <button class="btn btn-sm" onclick="document.getElementById('addPPForm').style.display='none'">Cancel</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="estab-rates" class="est-sp" style="display:none">
+        <div class="sec-label">Ink / toner (per impression)</div>
+        <table class="rate-tbl" style="margin-bottom:10px">
+          <tr><th>Mode</th><th>$/side</th></tr>
+          <tr><td>Color</td><td><input type="number" id="rateColor" value="0.045" step="0.001" min="0" oninput="calc()"></td></tr>
+          <tr><td>B&amp;W</td><td><input type="number" id="rateBW" value="0.012" step="0.001" min="0" oninput="calc()"></td></tr>
+        </table>
+        <div class="sec-label">Size multipliers</div>
+        <table class="rate-tbl" style="margin-bottom:10px">
+          <tr><th>Size</th><th>×</th></tr>
+          <tr><td>Letter</td><td><input type="number" id="rmLetter" value="1.00" step="0.05" min="0.1" oninput="calc()"></td></tr>
+          <tr><td>Legal</td><td><input type="number" id="rmLegal" value="1.20" step="0.05" min="0.1" oninput="calc()"></td></tr>
+          <tr><td>Tabloid</td><td><input type="number" id="rmTabloid" value="1.80" step="0.05" min="0.1" oninput="calc()"></td></tr>
+          <tr><td>A4</td><td><input type="number" id="rmA4" value="1.00" step="0.05" min="0.1" oninput="calc()"></td></tr>
+        </table>
+        <div class="sec-label">Setup fees</div>
+        <table class="rate-tbl">
+          <tr><th>Type</th><th>$</th></tr>
+          <tr><td>Digital</td><td><input type="number" id="setupDigital" value="8" step="0.5" min="0" oninput="calc()"></td></tr>
+          <tr><td>Wide format</td><td><input type="number" id="setupWide" value="15" step="0.5" min="0" oninput="calc()"></td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="est-main">
+      <div class="metric-grid" id="metrics">
+        <div class="metric"><div class="metric-label">Sell price</div><div class="metric-val">—</div></div>
+        <div class="metric"><div class="metric-label">Gross profit</div><div class="metric-val">—</div></div>
+        <div class="metric"><div class="metric-label">Margin</div><div class="metric-val">—</div></div>
+        <div class="metric"><div class="metric-label">Net profit</div><div class="metric-val">—</div></div>
+      </div>
+      <div class="est-card" id="estimateCard"><div style="text-align:center;padding:3rem;color:#aaa;font-size:13px">Configure your job on the left.</div></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap" id="estActionBar" style="display:none">
+        <button class="btn btn-primary" onclick="saveEstimate()">Save estimate</button>
+        <button class="btn btn-blue" onclick="exportCustomerCopy()">Customer copy</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== ESTIMATES PAGE ===================== -->
+<div class="page" id="page-estimates">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem">
+    <h2 style="margin:0">Estimates</h2>
+  </div>
+  <div class="stats" id="estimateStats"></div>
+  <div class="toolbar">
+    <input type="text" id="estSearch" placeholder="Search estimate #, job, customer..." oninput="loadEstimates()">
+    <select id="estStatusFilter" onchange="loadEstimates()">
+      <option value="">All statuses</option>
+      <option value="draft">Draft</option>
+      <option value="sent">Sent</option>
+      <option value="approved">Approved</option>
+      <option value="declined">Declined</option>
+    </select>
+    <select id="estRepFilter" onchange="loadEstimates()">
+      <option value="">All reps</option>
+    </select>
+  </div>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Est #</th><th>Job name</th><th>Customer</th><th>Rep</th><th>Date</th><th>Total</th><th>Status</th><th></th></tr></thead>
+      <tbody id="estTbody"><tr class="empty-row"><td colspan="8">Loading...</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ===================== CUSTOMERS PAGE ===================== -->
+<div class="page" id="page-customers">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem">
+    <h2 style="margin:0">Customers</h2>
+    <div style="display:flex;gap:8px">
+      <button class="btn" onclick="openModal('importModal')">Import CSV</button>
+      <button class="btn btn-primary" onclick="openCustomerModal(null)">+ Add customer</button>
+    </div>
+  </div>
+  <div class="stats" id="customerStats"></div>
+  <div class="toolbar">
+    <input type="text" id="custSearch" placeholder="Search name, company, email..." oninput="loadCustomers()">
+    <select id="custRepFilter" onchange="loadCustomers()"><option value="">All reps</option></select>
+    <select id="custTierFilter" onchange="loadCustomers()"><option value="">All tiers</option></select>
+    <select id="custStatusFilter" onchange="loadCustomers()">
+      <option value="active">Active</option>
+      <option value="inactive">Inactive</option>
+      <option value="all">All</option>
+    </select>
+  </div>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Name</th><th>Company</th><th>Contact</th><th>Rep</th><th>Tier</th><th>Payment terms</th><th>Estimates</th><th>Status</th><th></th></tr></thead>
+      <tbody id="custTbody"><tr class="empty-row"><td colspan="9">Loading...</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ===================== ORDERS PAGE ===================== -->
+<div class="page" id="page-orders">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem">
+    <h2 style="margin:0">Orders</h2>
+    <div style="display:flex;gap:8px">
+      <button class="btn" onclick="openManageStages()">Manage stages</button>
+      <div style="display:flex;border:0.5px solid #ddd;border-radius:8px;overflow:hidden">
+        <button id="viewListBtn" class="btn" style="border:none;border-radius:0;border-right:0.5px solid #ddd" onclick="setOrderView('list')">List</button>
+        <button id="viewBoardBtn" class="btn btn-primary" style="border:none;border-radius:0" onclick="setOrderView('board')">Board</button>
+      </div>
+    </div>
+  </div>
+  <div class="stats" id="orderStats"></div>
+  <div class="toolbar">
+    <input type="text" id="orderSearch" placeholder="Search job #, name, customer..." oninput="loadOrders()">
+    <select id="orderPayFilter" onchange="loadOrders()">
+      <option value="">All payment statuses</option>
+      <option value="unpaid">Unpaid</option>
+      <option value="deposit">Deposit</option>
+      <option value="paid">Paid in full</option>
+    </select>
+  </div>
+
+  <div id="orderListView" style="display:none">
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Job #</th><th>Job name</th><th>Customer</th><th>Rep</th><th>Stage</th><th>Due date</th><th>Operator</th><th>Payment</th><th>Total</th><th></th></tr></thead>
+        <tbody id="orderTbody"><tr class="empty-row"><td colspan="10">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="orderBoardView">
+    <div id="kanbanBoard" style="display:flex;gap:12px;overflow-x:auto;padding-bottom:1rem;align-items:flex-start"></div>
+  </div>
+</div>
+
+<!-- ===== MANAGE STAGES MODAL ===== -->
+<div class="modal-backdrop" id="stagesModal">
+  <div class="modal" style="max-width:440px">
+    <h3>Production stages</h3>
+    <div id="stagesList" style="margin-bottom:1rem"></div>
+    <div style="background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:12px;border:0.5px solid var(--color-border-tertiary)">
+      <div style="font-size:12px;font-weight:500;color:var(--color-text-secondary);margin-bottom:8px">Add new stage</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="text" id="newStageName" placeholder="Stage name" style="flex:1;height:30px;font-size:13px;padding:0 8px;border:1px solid #ddd;border-radius:7px">
+        <input type="color" id="newStageColor" value="#378ADD" style="width:36px;height:30px;border:1px solid #ddd;border-radius:7px;padding:2px;cursor:pointer">
+        <button class="btn btn-primary btn-sm" onclick="addStage()">Add</button>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="closeModal('stagesModal')">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== INVOICES / AR PAGE ===================== -->
+<div class="page" id="page-invoices">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem">
+    <h2 style="margin:0">Invoices / AR</h2>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-blue" onclick="openQBExport()">Export to QuickBooks</button>
+      <button class="btn btn-primary" onclick="openInvoiceModal(null)">+ New invoice</button>
+    </div>
+  </div>
+
+  <!-- Aging summary -->
+  <div class="stats" id="arAging" style="margin-bottom:1.25rem"></div>
+
+  <div class="toolbar">
+    <select id="invStatusFilter" onchange="loadInvoices()">
+      <option value="">All statuses</option>
+      <option value="draft">Draft</option>
+      <option value="sent">Sent</option>
+      <option value="partial">Partial</option>
+      <option value="paid">Paid</option>
+      <option value="overdue">Overdue</option>
+      <option value="void">Void</option>
+    </select>
+    <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:#888;cursor:pointer">
+      <input type="checkbox" id="invOverdueOnly" onchange="loadInvoices()"> Overdue only
+    </label>
+  </div>
+
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Invoice #</th><th>Customer</th><th>Order #</th><th>Issue date</th><th>Due date</th><th>Total</th><th>Paid</th><th>Balance</th><th>Status</th><th></th></tr></thead>
+      <tbody id="invTbody"><tr class="empty-row"><td colspan="10">Loading...</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ===== INVOICE DETAIL MODAL ===== -->
+<div class="modal-backdrop" id="invoiceModal">
+  <div class="modal" style="max-width:640px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1rem">
+      <h3 id="invModalTitle" style="margin:0">Invoice</h3>
+      <span id="invModalNumber" style="font-family:monospace;font-size:13px;color:#888"></span>
+    </div>
+    <input type="hidden" id="invId">
+
+    <div class="form-grid">
+      <div class="field"><label>Customer</label><select id="inv_customer"><option value="">— Select —</option></select></div>
+      <div class="field"><label>Sales rep</label><select id="inv_rep"><option value="">— None —</option></select></div>
+      <div class="field"><label>Issue date</label><input type="date" id="inv_issue" style="height:32px"></div>
+      <div class="field"><label>Due date</label><input type="date" id="inv_due" style="height:32px"></div>
+      <div class="field"><label>Status</label>
+        <select id="inv_status">
+          <option value="draft">Draft</option>
+          <option value="sent">Sent</option>
+          <option value="partial">Partial</option>
+          <option value="paid">Paid</option>
+          <option value="void">Void</option>
+        </select>
+      </div>
+      <div class="field"><label>Tax rate (%)</label><input type="number" id="inv_tax" value="0" min="0" step="0.1" oninput="calcInvTotal()"></div>
+    </div>
+
+    <div class="section-head">Line items</div>
+    <div id="invLineItems"></div>
+    <button class="btn btn-sm" onclick="addLineItem()" style="margin-top:8px">+ Add line</button>
+
+    <div style="display:flex;justify-content:flex-end;gap:1rem;margin-top:1rem;padding-top:1rem;border-top:1px solid #e0ded8">
+      <div style="text-align:right">
+        <div style="font-size:12px;color:#888">Subtotal: <strong id="invSubtotal">$0.00</strong></div>
+        <div style="font-size:12px;color:#888">Tax: <strong id="invTaxAmt">$0.00</strong></div>
+        <div style="font-size:16px;font-weight:500;margin-top:4px">Total: <strong id="invTotal">$0.00</strong></div>
+      </div>
+    </div>
+
+    <div class="field" style="margin-top:10px"><label>Notes</label><textarea id="inv_notes" style="height:56px"></textarea></div>
+
+    <!-- Payments section (shown when editing existing invoice) -->
+    <div id="invPaymentsSection" style="display:none">
+      <div class="section-head">Payments received</div>
+      <div id="invPaymentsList"></div>
+      <div style="background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:10px;margin-top:8px;border:0.5px solid var(--color-border-tertiary)">
+        <div style="font-size:12px;font-weight:500;color:var(--color-text-secondary);margin-bottom:8px">Record payment</div>
+        <div class="form-grid">
+          <div class="field"><label>Amount ($)</label><input type="number" id="pay_amount" min="0" step="0.01" placeholder="0.00"></div>
+          <div class="field"><label>Method</label>
+            <select id="pay_method">
+              <option value="check">Check</option>
+              <option value="cash">Cash</option>
+              <option value="credit_card">Credit card</option>
+              <option value="ach">ACH / wire</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div class="field"><label>Date</label><input type="date" id="pay_date" style="height:32px"></div>
+          <div class="field"><label>Reference / check #</label><input type="text" id="pay_ref" placeholder="Optional"></div>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="recordPayment()">Record payment</button>
+      </div>
+
+      <div class="section-head" style="margin-top:1rem">Credit memos</div>
+      <div id="invCreditsList"></div>
+      <div style="background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:10px;margin-top:8px;border:0.5px solid var(--color-border-tertiary)">
+        <div style="font-size:12px;font-weight:500;color:var(--color-text-secondary);margin-bottom:8px">Issue credit memo</div>
+        <div class="form-grid">
+          <div class="field"><label>Amount ($)</label><input type="number" id="cm_amount" min="0" step="0.01" placeholder="0.00"></div>
+          <div class="field"><label>Reason</label><input type="text" id="cm_reason" placeholder="e.g. Reprint, discount..."></div>
+        </div>
+        <button class="btn btn-sm" onclick="issueCreditMemo()">Issue credit memo</button>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="saveInvoice()">Save invoice</button>
+      <button class="btn btn-blue" onclick="markReminderSent()" id="reminderBtn" style="display:none">Mark reminder sent</button>
+      <button class="btn" onclick="closeModal('invoiceModal')">Close</button>
+      <button class="btn btn-danger" id="voidInvBtn" onclick="voidInvoice()" style="display:none;margin-left:auto">Void</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== QB EXPORT MODAL ===== -->
+<div class="modal-backdrop" id="qbModal">
+  <div class="modal" style="max-width:440px">
+    <h3>Export to QuickBooks</h3>
+    <p style="font-size:13px;color:#666;margin-bottom:1rem">Exports an IIF file you can import into QuickBooks Desktop or Online. Includes all non-void invoices and payments.</p>
+    <div class="form-grid">
+      <div class="field"><label>From date <span style="color:#aaa;font-weight:400">(optional)</span></label><input type="date" id="qb_from" style="height:32px"></div>
+      <div class="field"><label>To date <span style="color:#aaa;font-weight:400">(optional)</span></label><input type="date" id="qb_to" style="height:32px"></div>
+    </div>
+    <div style="background:#EAF3DE;border-radius:8px;padding:10px 12px;font-size:12px;color:#27500A;margin-top:8px">
+      In QuickBooks: File → Utilities → Import → IIF Files
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="downloadQBExport()">Download IIF file</button>
+      <button class="btn" onclick="closeModal('qbModal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== REPS PAGE ===================== -->
+<div class="page" id="page-reps">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem">
+    <h2 style="margin:0">Sales Reps</h2>
+    <button class="btn btn-primary" onclick="openRepModal(null)">+ Add rep</button>
+  </div>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Commission</th><th>Customers</th><th>Estimates</th><th>Revenue</th><th>Commission earned</th><th>Status</th><th></th></tr></thead>
+      <tbody id="repTbody"><tr class="empty-row"><td colspan="10">Loading...</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ===================== TIERS PAGE ===================== -->
+<div class="page" id="page-tiers">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem">
+    <h2 style="margin:0">Pricing Tiers</h2>
+    <button class="btn btn-primary" onclick="openTierModal(null)">+ Add tier</button>
+  </div>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Tier name</th><th>Margin floor</th><th>Discount</th><th>Customers</th><th>Notes</th><th></th></tr></thead>
+      <tbody id="tierTbody"><tr class="empty-row"><td colspan="6">Loading...</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ===== CUSTOMER MODAL ===== -->
+<div class="modal-backdrop" id="customerModal">
+  <div class="modal">
+    <h3 id="custModalTitle">Add customer</h3>
+    <input type="hidden" id="custId">
+    <div class="section-head">Contact info</div>
+    <div class="form-grid">
+      <div class="field"><label>First name *</label><input type="text" id="c_first_name"></div>
+      <div class="field"><label>Last name *</label><input type="text" id="c_last_name"></div>
+      <div class="field"><label>Company</label><input type="text" id="c_company"></div>
+      <div class="field"><label>Email</label><input type="email" id="c_email"></div>
+      <div class="field"><label>Phone</label><input type="tel" id="c_phone"></div>
+      <div class="field"><label>Mobile</label><input type="tel" id="c_mobile"></div>
+    </div>
+    <div class="section-head">Billing address</div>
+    <div class="form-grid cols1">
+      <div class="field"><label>Address line 1</label><input type="text" id="c_addr1"></div>
+      <div class="field"><label>Address line 2</label><input type="text" id="c_addr2"></div>
+    </div>
+    <div class="form-grid cols3">
+      <div class="field"><label>City</label><input type="text" id="c_city"></div>
+      <div class="field"><label>State</label><input type="text" id="c_state"></div>
+      <div class="field"><label>ZIP</label><input type="text" id="c_zip"></div>
+    </div>
+    <div class="section-head">Relationships</div>
+    <div class="form-grid">
+      <div class="field"><label>Sales rep</label><select id="c_rep"><option value="">— None —</option></select></div>
+      <div class="field"><label>Pricing tier</label><select id="c_tier"><option value="">— None —</option></select></div>
+    </div>
+    <div class="section-head">Credit &amp; payment</div>
+    <div class="form-grid">
+      <div class="field"><label>Payment terms</label>
+        <select id="c_terms">
+          <option value="">— Select —</option>
+          <option value="COD">COD</option>
+          <option value="Prepay">Prepay</option>
+          <option value="Net 15">Net 15</option>
+          <option value="Net 30">Net 30</option>
+          <option value="Net 45">Net 45</option>
+          <option value="Net 60">Net 60</option>
+        </select>
+      </div>
+      <div class="field"><label>Credit limit ($)</label><input type="number" id="c_credit" min="0" step="100"></div>
+      <div class="field"><label>Tax exempt?</label>
+        <select id="c_taxexempt"><option value="false">No</option><option value="true">Yes</option></select>
+      </div>
+      <div class="field"><label>Tax exempt ID</label><input type="text" id="c_taxid" placeholder="If applicable"></div>
+    </div>
+    <div class="section-head">Other</div>
+    <div class="form-grid">
+      <div class="field"><label>Source / referral</label><input type="text" id="c_source" placeholder="e.g. Google, referral..."></div>
+      <div class="field"><label>Status</label><select id="c_status"><option value="active">Active</option><option value="inactive">Inactive</option></select></div>
+    </div>
+    <div class="field" style="margin-top:10px"><label>Notes</label><textarea id="c_notes" style="height:72px"></textarea></div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="saveCustomer()">Save customer</button>
+      <button class="btn" onclick="closeModal('customerModal')">Cancel</button>
+      <button class="btn btn-danger" id="custDeleteBtn" style="margin-left:auto;display:none" onclick="deleteCustomer()">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== REP MODAL ===== -->
+<div class="modal-backdrop" id="repModal">
+  <div class="modal" style="max-width:440px">
+    <h3 id="repModalTitle">Add sales rep</h3>
+    <input type="hidden" id="repId">
+    <div class="form-grid">
+      <div class="field"><label>Full name *</label><input type="text" id="r_name"></div>
+      <div class="field"><label>Email</label><input type="email" id="r_email"></div>
+      <div class="field"><label>Phone</label><input type="tel" id="r_phone"></div>
+      <div class="field"><label>Commission % *</label><input type="number" id="r_commission" value="0" min="0" max="50" step="0.5"></div>
+      <div class="field"><label>Status</label><select id="r_active"><option value="true">Active</option><option value="false">Inactive</option></select></div>
+    </div>
+    <div class="field" style="margin-top:10px"><label>Notes</label><textarea id="r_notes" style="height:64px"></textarea></div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="saveRep()">Save rep</button>
+      <button class="btn" onclick="closeModal('repModal')">Cancel</button>
+      <button class="btn btn-danger" id="repDeleteBtn" style="margin-left:auto;display:none" onclick="deleteRep()">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== TIER MODAL ===== -->
+<div class="modal-backdrop" id="tierModal">
+  <div class="modal" style="max-width:440px">
+    <h3 id="tierModalTitle">Add pricing tier</h3>
+    <input type="hidden" id="tierId">
+    <div class="form-grid">
+      <div class="field"><label>Tier name *</label><input type="text" id="t_name" placeholder="e.g. Wholesale"></div>
+      <div class="field"><label>Discount % off sell price</label><input type="number" id="t_discount" value="0" min="0" max="80" step="0.5"></div>
+      <div class="field"><label>Margin floor (%) <span style="font-weight:400;color:#aaa">optional</span></label><input type="number" id="t_margin" placeholder="Leave blank = default" min="0" max="80" step="1"></div>
+    </div>
+    <div class="field" style="margin-top:10px"><label>Notes</label><textarea id="t_notes" style="height:64px" placeholder="Describe when to use this tier..."></textarea></div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="saveTier()">Save tier</button>
+      <button class="btn" onclick="closeModal('tierModal')">Cancel</button>
+      <button class="btn btn-danger" id="tierDeleteBtn" style="margin-left:auto;display:none" onclick="deleteTier()">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== CONVERT TO ORDER MODAL ===== -->
+<div class="modal-backdrop" id="convertModal">
+  <div class="modal" style="max-width:480px">
+    <h3>Convert to order</h3>
+    <input type="hidden" id="convertEstimateId">
+    <div style="background:#f9f8f6;border-radius:8px;padding:10px 12px;margin-bottom:1rem;font-size:13px;color:#666" id="convertEstimateSummary"></div>
+    <div class="form-grid">
+      <div class="field"><label>Due date</label><input type="date" id="conv_due_date" style="height:32px"></div>
+      <div class="field"><label>Assigned operator</label><input type="text" id="conv_operator" placeholder="e.g. John, Press 2"></div>
+      <div class="field"><label>Deposit amount ($)</label><input type="number" id="conv_deposit" value="0" min="0" step="0.01"></div>
+      <div class="field"><label>Payment status</label>
+        <select id="conv_payment">
+          <option value="unpaid">Unpaid</option>
+          <option value="deposit">Deposit received</option>
+          <option value="paid">Paid in full</option>
+        </select>
+      </div>
+    </div>
+    <div class="field" style="margin-top:10px"><label>Internal notes</label><textarea id="conv_notes" style="height:64px" placeholder="Production instructions, special handling..."></textarea></div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="confirmConvert()">Create order</button>
+      <button class="btn" onclick="closeModal('convertModal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== ORDER EDIT MODAL ===== -->
+<div class="modal-backdrop" id="orderModal">
+  <div class="modal" style="max-width:480px">
+    <h3 id="orderModalTitle">Edit order</h3>
+    <input type="hidden" id="orderId">
+    <div style="font-size:13px;font-weight:500;color:#1a1a18;margin-bottom:1rem" id="orderModalJobNum"></div>
+    <div class="form-grid">
+      <div class="field"><label>Stage</label><select id="o_stage"></select></div>
+      <div class="field"><label>Payment status</label>
+        <select id="o_pay">
+          <option value="unpaid">Unpaid</option>
+          <option value="deposit">Deposit received</option>
+          <option value="paid">Paid in full</option>
+        </select>
+      </div>
+      <div class="field"><label>Due date</label><input type="date" id="o_due" style="height:32px"></div>
+      <div class="field"><label>Operator</label><input type="text" id="o_operator" placeholder="e.g. John, Press 2"></div>
+      <div class="field"><label>Deposit amount ($)</label><input type="number" id="o_deposit" value="0" min="0" step="0.01"></div>
+    </div>
+    <div class="field" style="margin-top:10px"><label>Notes</label><textarea id="o_notes" style="height:64px"></textarea></div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="saveOrder()">Save</button>
+      <button class="btn btn-blue" id="createInvBtn" onclick="createInvFromCurrentOrder()">Create invoice</button>
+      <button class="btn" onclick="closeModal('orderModal')">Cancel</button>
+      <button class="btn btn-danger" style="margin-left:auto" onclick="deleteOrder()">Delete order</button>
+    </div>
+  </div>
+</div>
+<div class="modal-backdrop" id="importModal">
+  <div class="modal" style="max-width:600px">
+    <h3>Import customers from CSV</h3>
+
+    <div style="background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:12px;margin-bottom:1rem;font-size:12px;color:var(--color-text-secondary);line-height:1.6">
+      <strong style="color:var(--color-text-primary)">Your CSV columns detected:</strong> Company, Address, City, State, Zip Code, Contact, Phone Number<br>
+      <strong style="color:var(--color-text-primary)">Also supports:</strong> email, address_line2, payment_terms, notes<br>
+      <strong style="color:var(--color-text-primary)">Tip:</strong> First row must be the header row. "Company" is required.
+    </div>
+
+    <div id="importStep1">
+      <div style="border:2px dashed var(--color-border-secondary);border-radius:var(--border-radius-lg);padding:2rem;text-align:center;margin-bottom:1rem;cursor:pointer" onclick="document.getElementById('csvFileInput').click()">
+        <div style="font-size:13px;font-weight:500;color:var(--color-text-primary);margin-bottom:4px">Click to upload CSV file</div>
+        <div style="font-size:12px;color:var(--color-text-tertiary)">or drag and drop</div>
+        <input type="file" id="csvFileInput" accept=".csv" style="display:none" onchange="handleCSVFile(this)">
+      </div>
+      <div style="text-align:center;font-size:12px;color:var(--color-text-tertiary)">— or —</div>
+      <div style="margin-top:1rem">
+        <label style="font-size:12px;color:var(--color-text-secondary);display:block;margin-bottom:6px">Paste CSV text directly</label>
+        <textarea id="csvPasteArea" style="width:100%;height:120px;font-size:12px;font-family:monospace;resize:vertical;padding:8px;border:1px solid #ddd;border-radius:8px" placeholder="company,email,phone,address_line1,city,state,zip&#10;Acme Corp,info@acme.com,561-555-0101,123 Main St,Palm Beach,FL,33401&#10;Blue Ocean Press,bob@bop.com,561-555-0202,456 Ocean Dr,Miami,FL,33139"></textarea>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:1rem">
+        <div class="field" style="flex:1">
+          <label>Assign rep to all imported</label>
+          <select id="importRepSel" style="height:30px;font-size:13px;padding:0 8px;border:1px solid #ddd;border-radius:8px;width:100%">
+            <option value="">— None —</option>
+          </select>
+        </div>
+        <div class="field" style="flex:1">
+          <label>Assign tier to all imported</label>
+          <select id="importTierSel" style="height:30px;font-size:13px;padding:0 8px;border:1px solid #ddd;border-radius:8px;width:100%">
+            <option value="">— None —</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div id="importStep2" style="display:none">
+      <div style="font-size:13px;font-weight:500;margin-bottom:8px" id="importPreviewTitle"></div>
+      <div style="max-height:300px;overflow-y:auto;border:1px solid var(--color-border-tertiary);border-radius:var(--border-radius-md)">
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead><tr id="importPreviewHead" style="background:var(--color-background-secondary)"></tr></thead>
+          <tbody id="importPreviewBody"></tbody>
+        </table>
+      </div>
+      <div id="importErrors" style="margin-top:8px;font-size:12px;color:#a32d2d"></div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-primary" id="importActionBtn" onclick="runImport()">Preview import</button>
+      <button class="btn" onclick="resetImportModal()">Cancel</button>
+      <span id="importProgress" style="font-size:12px;color:var(--color-text-tertiary);margin-left:auto"></span>
+    </div>
+  </div>
+</div>
+
+<!-- ===== IMPOSITION PREVIEW MODAL ===== -->
+<div class="modal-backdrop" id="impositionModal">
+  <div class="modal" style="max-width:680px">
+    <h3>Sheet layout preview</h3>
+    <div style="background:var(--color-background-secondary);border-radius:10px;padding:12px;margin-bottom:1rem">
+      <canvas id="impCanvas" style="width:100%;border-radius:6px;background:#fff;border:0.5px solid var(--color-border-tertiary);display:block"></canvas>
+      <div style="display:flex;gap:16px;margin-top:8px;font-size:11px;color:var(--color-text-secondary)">
+        <span><span style="display:inline-block;width:10px;height:10px;background:#B5D4F4;border:1px solid #378ADD;border-radius:2px;margin-right:4px"></span>Trim</span>
+        <span><span style="display:inline-block;width:10px;height:10px;background:#EAF3DE;border:1px solid #639922;border-radius:2px;margin-right:4px"></span>Bleed</span>
+        <span><span style="display:inline-block;width:10px;height:10px;background:#FAEEDA;border:1px solid #EF9F27;border-radius:2px;margin-right:4px"></span>Gripper</span>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:1rem">
+      <div style="background:var(--color-background-secondary);border-radius:8px;padding:10px 12px">
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--color-text-tertiary);margin-bottom:4px">Outs per sheet</div>
+        <div style="font-size:20px;font-weight:500" id="imp_modal_outs">—</div>
+        <div style="font-size:11px;color:var(--color-text-secondary)" id="imp_modal_grid">—</div>
+      </div>
+      <div style="background:var(--color-background-secondary);border-radius:8px;padding:10px 12px">
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--color-text-tertiary);margin-bottom:4px">Sheets needed</div>
+        <div style="font-size:20px;font-weight:500" id="imp_modal_sheets">—</div>
+        <div style="font-size:11px;color:var(--color-text-secondary)" id="imp_modal_pcs">—</div>
+      </div>
+      <div style="background:var(--color-background-secondary);border-radius:8px;padding:10px 12px">
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--color-text-tertiary);margin-bottom:4px">Substrate cost</div>
+        <div style="font-size:20px;font-weight:500" id="imp_modal_cost">—</div>
+        <div style="font-size:11px;color:var(--color-text-secondary)" id="imp_modal_waste">—</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="closeModal('impositionModal')">Close</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="/app.js"></script>
+<script src="/imposition.js"></script>
+<script src="/components.js"></script>
+<script src="/admin.js"></script></body>
+</html>
