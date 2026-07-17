@@ -67,10 +67,6 @@ const modalHTML = `<div id="impositionModal" style="display:none;position:fixed;
 </div>
 </div>`;
 
-function injectButton() {
-  // Button is now injected directly in index.html
-}
-
 function injectModal() {
   if (!document.getElementById('impositionModal')) {
     document.body.insertAdjacentHTML('beforeend', modalHTML);
@@ -174,7 +170,8 @@ window.runImp = function() {
   var around = Math.max(1, Math.floor((sh - grip + gut) / (uh + gut)));
   var outs = across * around * rolls;
   var sheets = Math.ceil(qty / outs);
-  var sqft = (sw/12) * (sh/12) * sheets;
+  // Each pull consumes `rolls` physical sheets, so material area scales by rolls.
+  var sqft = (sw/12) * (sh/12) * sheets * rolls;
   var cost = sqft * csf;
   var usedW = across*(uw+gut)-gut, usedH = around*(uh+gut)-gut+grip;
   var waste = Math.max(0, Math.min(99, ((sw*sh)-(usedW*usedH))/(sw*sh)*100));
@@ -233,25 +230,4 @@ window.applyImp = function() {
   if(typeof toast==='function')toast('Applied: '+_imp.outs+' outs, '+_imp.sheets+' sheets, $'+_imp.cost.toFixed(2)+' substrate');
 };
 
-if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',injectButton);}
-else{injectButton();setTimeout(injectButton,1000);}
-
 })();
-
-// Update summary text after applying
-function updateSpecsSummary() {
-  var el = document.getElementById('jobSpecsText');
-  if (!el) return;
-  var jt = document.getElementById('ip_jt');
-  var qty = document.getElementById('ip_qty');
-  var ps = document.getElementById('ip_ps');
-  var cm = document.getElementById('ip_cm');
-  var fw = document.getElementById('ip_fw');
-  var fh = document.getElementById('ip_fh');
-  if (!jt) return;
-  var type = jt.value === 'wide' ? 'Wide format' : 'Digital';
-  var qtyVal = qty ? qty.value : '—';
-  var sizeVal = fw && fh ? fw.value + '" × ' + fh.value + '"' : '';
-  var extra = jt.value === 'digital' ? (ps ? ps.options[ps.selectedIndex].text : '') + ', ' + (cm ? (cm.value === 'color' ? 'Color' : 'B&W') : '') : sizeVal;
-  el.textContent = type + ' · Qty ' + qtyVal + ' · ' + extra;
-}

@@ -20,15 +20,12 @@ router.get('/:id', async (req, res) => {
   try {
     const { rows } = await db.query(
       `SELECT r.*,
-        COUNT(DISTINCT c.id)  AS customer_count,
-        COUNT(DISTINCT e.id)  AS estimate_count,
-        COALESCE(SUM(e.sell_price),0) AS total_revenue,
-        COALESCE(SUM(e.comm_amt),0)   AS total_commission
+        (SELECT COUNT(*) FROM customers c WHERE c.sales_rep_id = r.id)              AS customer_count,
+        (SELECT COUNT(*) FROM estimates e WHERE e.sales_rep_id = r.id)              AS estimate_count,
+        (SELECT COALESCE(SUM(e.sell_price),0) FROM estimates e WHERE e.sales_rep_id = r.id) AS total_revenue,
+        (SELECT COALESCE(SUM(e.comm_amt),0)   FROM estimates e WHERE e.sales_rep_id = r.id) AS total_commission
        FROM sales_reps r
-       LEFT JOIN customers c ON c.sales_rep_id = r.id
-       LEFT JOIN estimates e ON e.sales_rep_id = r.id
-       WHERE r.id = $1
-       GROUP BY r.id`,
+       WHERE r.id = $1`,
       [req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Not found' });

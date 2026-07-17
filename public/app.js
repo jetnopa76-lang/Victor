@@ -372,7 +372,7 @@ function buildStockSelects(){
   var ws=document.getElementById('mediaSel');var wcur=ws?ws.value:'';
   if(ws)ws.innerHTML=stocks.wide.map(function(s){
     return '<option value="'+s.id+'"'+(s.id===wcur?' selected':'')+
-      ' data-width="'+(s.rollWidth||54)+'"'+
+      ' data-width="'+(s.rollW||54)+'"'+
       ' data-cost="'+(s.costPerSqft||0)+'"'+
       '>'+s.name+'</option>';
   }).join('');
@@ -381,6 +381,7 @@ function buildStockSelects(){
 function calc(){
   var type=document.getElementById('jobType').value;
   var margin=parseInt(document.getElementById('marginSlider').value)/100;
+  if(isNaN(margin)||margin<0)margin=0; if(margin>0.95)margin=0.95; // guard: sell=cost/(1-margin) must stay finite & positive
   var rush=parseFloat(document.getElementById('rushFee').value)||0;
   var taxPct=parseFloat(document.getElementById('taxRate').value)||0;
   var rateColor=parseFloat(document.getElementById('rateColor').value)||0.045;
@@ -1049,36 +1050,6 @@ async function deleteOrder(){
   }catch(e){toast('Error: '+e.message);}
 }
 
-// ── INIT ──────────────────────────────────────────────────────────
-
-function openConvertModal(estimateId, jobName, total){
-  document.getElementById('convertEstimateId').value=estimateId;
-  document.getElementById('convertEstimateSummary').innerHTML='<strong>'+jobName+'</strong> &middot; $'+parseFloat(total).toFixed(2);
-  document.getElementById('conv_due_date').value='';
-  document.getElementById('conv_operator').value='';
-  document.getElementById('conv_deposit').value=0;
-  document.getElementById('conv_payment').value='unpaid';
-  document.getElementById('conv_notes').value='';
-  openModal('convertModal');
-}
-
-async function confirmConvert(){
-  var id=document.getElementById('convertEstimateId').value;
-  var body={
-    due_date:document.getElementById('conv_due_date').value||null,
-    operator:document.getElementById('conv_operator').value.trim(),
-    deposit_amt:parseFloat(document.getElementById('conv_deposit').value)||0,
-    payment_status:document.getElementById('conv_payment').value,
-    notes:document.getElementById('conv_notes').value.trim()
-  };
-  try{
-    var order=await api('POST','/orders/convert/'+id,body);
-    closeModal('convertModal');
-    toast('Order '+order.job_number+' created!');
-    showPage('orders',document.querySelectorAll('.nav-tab')[2]);
-  }catch(e){toast('Error: '+e.message);}
-}
-
 async function createInvFromCurrentOrder(){
   var id=document.getElementById('orderId').value;
   if(!id)return;
@@ -1119,7 +1090,7 @@ async function viewOrderFromEstimate(estimateId){
     var orders=await api('GET','/orders');
     var order=orders.find(function(o){return String(o.estimate_id)===String(estimateId);});
     if(!order){toast('No order found for this estimate.');return;}
-    showPage('orders',document.querySelectorAll('.nav-tab')[3]);
+    showPage('orders',document.querySelectorAll('.nav-tab')[2]);
     setTimeout(function(){openOrderModal(order);},400);
   }catch(e){toast('Error: '+e.message);}
 }
@@ -1357,15 +1328,6 @@ async function downloadQBExport(){
     URL.revokeObjectURL(url);
     closeModal('qbModal');
     toast('QuickBooks IIF file downloaded!');
-  }catch(e){toast('Error: '+e.message);}
-}
-
-// Create invoice from order button (called from Orders page)
-async function createInvoiceFromOrder(orderId, jobName, total){
-  try{
-    var inv=await api('POST','/invoices/from-order/'+orderId,{});
-    toast('Invoice '+inv.invoice_number+' created!');
-    showPage('invoices',document.querySelectorAll('.nav-tab')[4]);
   }catch(e){toast('Error: '+e.message);}
 }
 

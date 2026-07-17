@@ -164,8 +164,10 @@ function calcLayoutCost(layout) {
   // How many rolls needed if length exceeds one roll (informational)
   var rollLen = layout.sh > 0 ? layout.sh : lenUsed;
   var rolls = Math.max(1, Math.ceil(lenUsed / rollLen));
-  // sqft consumed = (width × length × sides)
-  var sqft = (layout.sw/12) * (lenUsed/12) * sides;
+  // sqft of substrate consumed = width × length. Double-siding does NOT
+  // consume extra material (both sides print on the same sheet/roll), so
+  // `sides` must not scale the area here.
+  var sqft = (layout.sw/12) * (lenUsed/12);
   // Waste: positions not used on the last row
   var pieceArea = uw * uh * (layout.qty || 1);
   var totalAreaUsed = layout.sw * lenUsed;
@@ -537,39 +539,6 @@ function getTabLibrary(tabName) {
   return null;
 }
 
-function buildLibraryPicker(tabIdx, lib) {
-  if (!cachedMaterials || !cachedMaterials.length) return '';
-  var items = cachedMaterials.filter(function(m){ return lib.categories.indexOf(m.category_name) !== -1; });
-  if (!items.length) return '';
-  var opts = '<option value="">— Add from ' + escHtml(lib.label) + ' library (' + items.length + ' items) —</option>';
-  items.forEach(function(m){
-    var label = (m.sku ? m.sku + ' — ' : '') + (m.name || '');
-    var sz = m.width_in ? ' (' + Number(m.width_in) + '")' : '';
-    var price = ' — $' + Number(m.cost||0).toFixed(4) + '/sqft';
-    opts += '<option value="' + m.id + '">' + escHtml(label) + sz + price + '</option>';
-  });
-  return '<select class="inp" style="margin-bottom:10px" onchange="addItemFromLibrary(' + tabIdx + ',this.value);this.value=\'\'">' + opts + '</select>';
-}
-
-window.addItemFromLibrary = function(tabIdx, materialId) {
-  if (!materialId) return;
-  var m = (cachedMaterials||[]).find(function(x){ return String(x.id) === String(materialId); });
-  if (!m) return;
-  var c = components[currentCompIdx];
-  var lc = calcLayoutCost(c.layout);
-  var qty = lc.sqft > 0 ? Math.ceil(lc.sqft) : 1;
-  var name = (m.sku ? m.sku + ' — ' : '') + (m.name || '');
-  c.processTabs[tabIdx].items.push({
-    id: nid(),
-    name: name.length > 80 ? name.substring(0, 77) + '…' : name,
-    method: 'per_sqft',
-    rate: parseFloat(m.cost) || 0,
-    qty: qty,
-    material_id: m.id
-  });
-  renderCompEditor();
-};
-
 function buildPickerMaterialOptions(categories) {
   if (!cachedMaterials) return '<option value="">Loading materials…</option>';
   var items = cachedMaterials.filter(function(m){ return categories.indexOf(m.category_name) !== -1; });
@@ -923,7 +892,8 @@ window.deleteItem = function(tabIdx, itemIdx) {
 
 window.updateItem = function(tabIdx, itemIdx, field, val) {
   var item = components[currentCompIdx].processTabs[tabIdx].items[itemIdx];
-  item[field] = field === 'name' ? val : (parseFloat(val) || 0);
+  // name/method are string fields; everything else is numeric.
+  item[field] = (field === 'name' || field === 'method') ? val : (parseFloat(val) || 0);
   var total = calcItemTotal(item);
   var rows = document.querySelectorAll('.proc-row');
   if (rows[itemIdx]) {

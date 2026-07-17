@@ -100,7 +100,7 @@ router.post('/from-order/:orderId', async (req, res) => {
        WHERE o.id=$1`,
       [req.params.orderId]
     );
-    if (!orders.length) return res.status(404).json({ error: 'Order not found' });
+    if (!orders.length) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Order not found' }); }
     const o = orders[0];
     const invoiceNum = await generateInvoiceNumber(client);
     const { due_date, notes, tax_pct = 0 } = req.body;
@@ -181,9 +181,9 @@ router.post('/:id/payments', async (req, res) => {
     await client.query('BEGIN');
     const { amount, method='other', reference='', notes='', payment_date } = req.body;
     const amt = parseFloat(amount);
-    if (!amt || amt <= 0) return res.status(400).json({ error: 'Invalid amount' });
+    if (!amt || amt <= 0) { await client.query('ROLLBACK'); return res.status(400).json({ error: 'Invalid amount' }); }
     const { rows: inv } = await client.query('SELECT * FROM invoices WHERE id=$1', [req.params.id]);
-    if (!inv.length) return res.status(404).json({ error: 'Invoice not found' });
+    if (!inv.length) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Invoice not found' }); }
     const invoice = inv[0];
     const { rows: payment } = await client.query(
       `INSERT INTO invoice_payments (invoice_id, customer_id, payment_date, amount, method, reference, notes)
@@ -210,7 +210,7 @@ router.delete('/:invoiceId/payments/:paymentId', async (req, res) => {
   try {
     await client.query('BEGIN');
     const { rows: p } = await client.query('SELECT * FROM invoice_payments WHERE id=$1', [req.params.paymentId]);
-    if (!p.length) return res.status(404).json({ error: 'Not found' });
+    if (!p.length) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Not found' }); }
     await client.query('DELETE FROM invoice_payments WHERE id=$1', [req.params.paymentId]);
     const { rows: inv } = await client.query('SELECT * FROM invoices WHERE id=$1', [req.params.invoiceId]);
     if (inv.length) {
@@ -237,7 +237,7 @@ router.post('/:id/credits', async (req, res) => {
     const memoNum = await generateMemoNumber(client);
     const { amount, reason='', memo_date } = req.body;
     const { rows: inv } = await client.query('SELECT * FROM invoices WHERE id=$1', [req.params.id]);
-    if (!inv.length) return res.status(404).json({ error: 'Invoice not found' });
+    if (!inv.length) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Invoice not found' }); }
     const { rows: memo } = await client.query(
       `INSERT INTO credit_memos (memo_number, invoice_id, customer_id, memo_date, amount, reason)
        VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,

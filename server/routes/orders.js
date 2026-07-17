@@ -100,7 +100,7 @@ router.post('/convert/:estimateId', async (req, res) => {
        FROM estimates e LEFT JOIN customers c ON c.id = e.customer_id WHERE e.id=$1`,
       [req.params.estimateId]
     );
-    if (!est.length) return res.status(404).json({ error: 'Estimate not found' });
+    if (!est.length) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Estimate not found' }); }
     const e = est[0];
     const jobNumber = await generateJobNumber(client);
     const { due_date, operator, notes, deposit_amt = 0, payment_status = 'unpaid', stage_id } = req.body;

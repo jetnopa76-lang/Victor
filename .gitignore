@@ -1,0 +1,15 @@
+# Secrets — NEVER commit
+.env
+.env.*
+!.env.example
+
+# OS / editor cruft
+.DS_Store
+**/.DS_Store
+
+# Claude Code local working directory
+.claude/
+
+# Bulk data exports — contain customer & vendor PII, keep out of the repo
+Enterprise/
+*.csv

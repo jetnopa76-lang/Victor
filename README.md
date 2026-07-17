@@ -30,7 +30,14 @@ sales reps, pricing tiers, and estimates.
 1. In your Neon dashboard, click **SQL Editor**
 2. Open the file `schema.sql` from this project
 3. Paste the entire contents into the SQL Editor and click **Run**
-4. This creates all tables and adds sample seed data (reps + tiers)
+4. This creates **all** tables — customers, reps, tiers, estimates, orders,
+   invoices/AR, production stages, materials, cost centers, and users — plus
+   sample seed data (reps, tiers, production stages). The file is idempotent,
+   so it is safe to re-run.
+
+> The `migration_ar.sql` and `migration_stages.sql` files are **only** needed to
+> upgrade an older database created before those features existed. A fresh
+> install from `schema.sql` already includes them.
 
 ### 3. Configure environment
 
