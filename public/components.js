@@ -153,35 +153,69 @@ function calcTabTotal(tab) {
   return tab.items.reduce(function(s,i){ return s + calcItemTotal(i); }, 0);
 }
 
+// Is this a rigid board / cut-sheet stock (fixed sheet, bought whole) vs. a
+// continuous roll (banner, vinyl, etc., bought by the linear foot)?
+function isBoardStock(cat) {
+  cat = (cat || '').toLowerCase();
+  if (/roll|banner|vinyl|fabric|mesh|film|scrim|canvas|paper|wallpaper/.test(cat)) return false;
+  if (/board|rigid|panel|acrylic|aluminum|sheet|foam|pvc|coroplast|corrugat|dibond|acm|styrene|glass|wood|substrate/.test(cat)) return true;
+  return false; // default: treat unknown wide-format media as roll goods
+}
+
+// Compute substrate layout + cost. Automatically tries both piece orientations
+// (0° and 90°) and keeps whichever nests more pieces / uses less material.
 function calcLayoutCost(layout) {
-  var uw = layout.fw + layout.bleed*2, uh = layout.fh + layout.bleed*2;
   var sides = Math.max(1, parseInt(layout.sides) || 1);
-  var across = Math.max(1, Math.floor((layout.sw + layout.gut) / (uw + layout.gut)));
-  var rowsNeeded = Math.max(1, Math.ceil((layout.qty || 1) / across));
-  var totalOuts = rowsNeeded * across;
-  // Length of roll consumed for the job (in inches), per side
-  var lenUsed = layout.grip + rowsNeeded * (uh + layout.gut) - layout.gut;
-  // How many rolls needed if length exceeds one roll (informational)
-  var rollLen = layout.sh > 0 ? layout.sh : lenUsed;
-  var rolls = Math.max(1, Math.ceil(lenUsed / rollLen));
-  // sqft of substrate consumed = width × length. Double-siding does NOT
-  // consume extra material (both sides print on the same sheet/roll), so
-  // `sides` must not scale the area here.
-  var sqft = (layout.sw/12) * (lenUsed/12);
-  // Waste: positions not used on the last row
-  var pieceArea = uw * uh * (layout.qty || 1);
-  var totalAreaUsed = layout.sw * lenUsed;
-  var waste = Math.max(0, Math.min(99, ((totalAreaUsed - pieceArea) / Math.max(totalAreaUsed, 1)) * 100));
+  var bw = layout.fw + layout.bleed*2, bh = layout.fh + layout.bleed*2; // bled piece
+  var sw = layout.sw || 0, sh = layout.sh || 0;
+  var grip = layout.grip || 0, gut = layout.gut || 0, qty = Math.max(1, layout.qty || 1);
+  var csf = layout.csf || 0;
+  var pieceSqftEach = (bw/12) * (bh/12);
+
+  if (isBoardStock(layout.material_category) && sw > 0 && sh > 0) {
+    // ── Rigid board: grid-nest onto a fixed sw×sh sheet, buy whole boards ──
+    function fitBoard(pw, ph) {
+      var a = Math.max(0, Math.floor((sw + gut) / (pw + gut)));            // across the width
+      var d = Math.max(0, Math.floor((sh - grip + gut) / (ph + gut)));     // down the sheet
+      return { across: a, down: d, per: a * d, pw: pw, ph: ph };
+    }
+    var f0 = fitBoard(bw, bh), f90 = fitBoard(bh, bw);
+    var best = f90.per > f0.per ? f90 : f0;                                // more pieces wins
+    var perSheet = best.per;
+    var fits = perSheet > 0;
+    var sheets = fits ? Math.ceil(qty / perSheet) : 1;                     // whole boards
+    var sheetSqft = (sw/12) * (sh/12);
+    var sqft = sheets * sheetSqft;                                         // pay for whole boards
+    var waste = Math.max(0, Math.min(99, (1 - (pieceSqftEach * qty) / (sheetSqft * sheets)) * 100));
+    return {
+      mode: 'board', rotated: best.pw !== bw, fits: fits,
+      across: best.across, around: best.down, outs: perSheet, perSheet: perSheet,
+      sheets: sheets, sqft: sqft, cost: sqft * csf, waste: waste,
+      lenUsed: sh, puw: best.pw, puh: best.ph, sides: sides
+    };
+  }
+
+  // ── Roll goods: lay pieces across the roll width, consume length; rotate to
+  //    minimize the length pulled. Billed by width × length used. ──
+  function fitRoll(pw, ph) {
+    var a = Math.max(1, Math.floor((sw + gut) / (pw + gut)));
+    var rows = Math.max(1, Math.ceil(qty / a));
+    var len = grip + rows * (ph + gut) - gut;
+    return { across: a, rows: rows, len: len, pw: pw, ph: ph };
+  }
+  var r0 = fitRoll(bw, bh), r90 = fitRoll(bh, bw);
+  var rb = r90.len < r0.len ? r90 : r0;                                    // less length wins
+  var rollLen = sh > 0 ? sh : rb.len;
+  var rolls = Math.max(1, Math.ceil(rb.len / rollLen));
+  var sqft = (sw/12) * (rb.len/12);
+  var totalArea = sw * rb.len;
+  var pieceArea = rb.pw * rb.ph * qty;
+  var waste = Math.max(0, Math.min(99, ((totalArea - pieceArea) / Math.max(totalArea, 1)) * 100));
   return {
-    across,
-    around: rowsNeeded,
-    outs: totalOuts,
-    sheets: rolls,
-    sqft,
-    cost: sqft * (layout.csf || 0),
-    waste,
-    lenUsed,
-    sides
+    mode: 'roll', rotated: rb.pw !== bw, fits: true,
+    across: rb.across, around: rb.rows, outs: rb.across * rb.rows, perSheet: rb.across * rb.rows,
+    sheets: rolls, sqft: sqft, cost: sqft * csf, waste: waste,
+    lenUsed: rb.len, puw: rb.pw, puh: rb.ph, sides: sides
   };
 }
 
@@ -471,8 +505,10 @@ function renderLayoutTab(c) {
       <div><label class="lbl">Gutter (in)</label><input class="inp" type="number" value="${l.gut}" step="0.0625" oninput="updateLayout('gut',this.value)"></div>
     </div>
     <div class="stat-grid">
-      <div class="stat-box"><div class="sl">Layout</div><div class="sv">${lc.across}×${lc.around}</div><div class="ss">${lc.outs} positions · ${l.qty} pcs</div></div>
-      <div class="stat-box"><div class="sl">Roll length used</div><div class="sv">${(lc.lenUsed/12).toFixed(1)} ft</div><div class="ss">${lc.lenUsed.toFixed(1)}" · ${lc.sheets > 1 ? lc.sheets+' rolls · ' : ''}${lc.waste.toFixed(1)}% waste</div></div>
+      <div class="stat-box"><div class="sl">Layout${lc.rotated?' <span style="color:#378ADD">⟳ rotated</span>':''}</div><div class="sv">${lc.across}×${lc.around}</div><div class="ss">${lc.mode==='board'?lc.outs+' per board · '+l.qty+' pcs':lc.outs+' positions · '+l.qty+' pcs'}</div></div>
+      ${lc.mode==='board'
+        ? `<div class="stat-box"><div class="sl">Boards used</div><div class="sv">${lc.sheets} board${lc.sheets>1?'s':''}</div><div class="ss">${lc.fits?lc.waste.toFixed(1)+'% waste':'<span style="color:#c0392b">⚠ piece too big for sheet</span>'}</div></div>`
+        : `<div class="stat-box"><div class="sl">Roll length used</div><div class="sv">${(lc.lenUsed/12).toFixed(1)} ft</div><div class="ss">${lc.lenUsed.toFixed(1)}" · ${lc.sheets > 1 ? lc.sheets+' rolls · ' : ''}${lc.waste.toFixed(1)}% waste</div></div>`}
       <div class="stat-box"><div class="sl">Substrate cost</div><div class="sv">$${lc.cost.toFixed(2)}</div><div class="ss">${lc.sqft.toFixed(1)} sq ft${lc.sides>1?' (×'+lc.sides+' sides)':''}</div></div>
     </div>
     <canvas id="compCanvas" class="canvas-preview" height="200"></canvas>
@@ -495,10 +531,12 @@ function drawCompCanvas(l, lc) {
   var ctx = canvas.getContext('2d');
   var scale = Math.min((cw-16)/l.sw, (ch-16)/lenForDraw);
   var ox = (cw-l.sw*scale)/2, oy = 8;
-  var uw = l.fw+l.bleed*2, uh = l.fh+l.bleed*2;
   ctx.fillStyle='#f0efec'; ctx.fillRect(ox,oy,l.sw*scale,lenForDraw*scale);
   ctx.strokeStyle='#ccc'; ctx.lineWidth=0.5; ctx.strokeRect(ox,oy,l.sw*scale,lenForDraw*scale);
   ctx.fillStyle='#FAEEDA'; ctx.fillRect(ox,oy,l.sw*scale,l.grip*scale);
+  // Use the orientation the calculator actually chose (may be rotated 90°)
+  var uw = lc.puw || (l.fw+l.bleed*2), uh = lc.puh || (l.fh+l.bleed*2);
+  var iw = Math.max(0, uw-l.bleed*2), ih = Math.max(0, uh-l.bleed*2); // finished (inner) dims
   var maxD=Math.min(lc.across*lc.around,200), drawn=0;
   outer:for(var row=0;row<lc.around;row++){
     for(var col=0;col<lc.across;col++){
@@ -508,13 +546,13 @@ function drawCompCanvas(l, lc) {
       ctx.fillStyle = isWaste ? '#f5e0e0' : '#EAF3DE';
       ctx.fillRect(px,py,uw*scale,uh*scale);
       ctx.fillStyle = isWaste ? '#e8c0c0' : '#B5D4F4';
-      ctx.fillRect(px+l.bleed*scale,py+l.bleed*scale,l.fw*scale,l.fh*scale);
-      ctx.strokeStyle = isWaste ? '#a32d2d' : '#378ADD'; ctx.lineWidth=0.5; ctx.setLineDash([]); ctx.strokeRect(px+l.bleed*scale,py+l.bleed*scale,l.fw*scale,l.fh*scale);
+      ctx.fillRect(px+l.bleed*scale,py+l.bleed*scale,iw*scale,ih*scale);
+      ctx.strokeStyle = isWaste ? '#a32d2d' : '#378ADD'; ctx.lineWidth=0.5; ctx.setLineDash([]); ctx.strokeRect(px+l.bleed*scale,py+l.bleed*scale,iw*scale,ih*scale);
       ctx.strokeStyle = isWaste ? '#a32d2d' : '#639922'; ctx.setLineDash([2,2]); ctx.strokeRect(px,py,uw*scale,uh*scale); ctx.setLineDash([]);
       drawn++;
     }
   }
-  if(l.fw*scale>30){ctx.fillStyle='#0C447C';ctx.font='bold 9px sans-serif';ctx.fillText(l.fw+'" x '+l.fh+'"',ox+l.bleed*scale+2,oy+l.grip*scale+l.bleed*scale+10);}
+  if(iw*scale>30){ctx.fillStyle='#0C447C';ctx.font='bold 9px sans-serif';ctx.fillText(iw+'" x '+ih+'"',ox+l.bleed*scale+2,oy+l.grip*scale+l.bleed*scale+10);}
 }
 
 window.addProcessTab = function() {
