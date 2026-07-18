@@ -3,6 +3,7 @@ const API = '/api';
 var customers=[], reps=[], tiers=[], lastCalc={sell:0,cost:0,profit:0,tax:0,total:0,taxPct:0,margin:0,comm:0,commPct:0,netProfit:0};
 var currentEstimateId=null; // id of the estimate currently loaded in the editor (null = new)
 var currentEstimateStatus='draft'; // preserve status when re-saving an existing estimate
+var currentEstimateNumber=''; // EST-number shown separately from the (editable) job name
 
 // ── HEALTH CHECK ──────────────────────────────────────────────
 async function checkHealth(){
@@ -480,7 +481,7 @@ function calc(){
   var commRow=commPct>0?'<tr><td style="color:#666">Commission ('+commPct+'%)</td><td>+$'+comm.toFixed(2)+'</td></tr>':'';
   var notesHtml=notes?'<div class="notes-box"><div class="nbx-lbl">Notes</div>'+notes+'</div>':'';
   document.getElementById('estimateCard').innerHTML=
-    '<div class="est-hdr"><div><div style="font-size:16px;font-weight:500">'+name+'</div><div style="font-size:12px;color:#aaa;margin-top:2px">'+(custLabel?custLabel+' &middot; ':'')+''+tag+' &middot; '+new Date().toLocaleDateString()+'</div></div><div style="text-align:right"><div style="font-size:10px;color:#aaa;text-transform:uppercase;letter-spacing:.06em">'+(taxPct>0?'Total w/ tax':'Total')+'</div><div style="font-size:26px;font-weight:500">$'+total.toFixed(2)+'</div></div></div>'+
+    '<div class="est-hdr"><div><div style="font-size:16px;font-weight:500">'+name+'</div><div style="font-size:12px;color:#aaa;margin-top:2px">'+(currentEstimateNumber?'<span style="font-family:monospace;color:#888">'+currentEstimateNumber+'</span> &middot; ':'')+(custLabel?custLabel+' &middot; ':'')+''+tag+' &middot; '+new Date().toLocaleDateString()+'</div></div><div style="text-align:right"><div style="font-size:10px;color:#aaa;text-transform:uppercase;letter-spacing:.06em">'+(taxPct>0?'Total w/ tax':'Total')+'</div><div style="font-size:26px;font-weight:500">$'+total.toFixed(2)+'</div></div></div>'+
     '<table class="bd-table"><tr><td colspan="2" style="font-size:11px;font-weight:500;color:#aaa;text-transform:uppercase;letter-spacing:.06em;padding-bottom:6px;border-top:none">Cost of goods</td></tr>'+
     mainRows+ppRows+compRows+
     '<tr><td style="font-size:12px;color:#aaa">Total COGS</td><td style="font-size:12px;color:#888">$'+cost.toFixed(2)+'</td></tr>'+
@@ -668,6 +669,7 @@ function renderSavedActionBar(saved, jobName){
 function newEstimate(){
   currentEstimateId=null;
   currentEstimateStatus='draft';
+  currentEstimateNumber='';
   clearJob();
   if(typeof importComponents==='function') importComponents([]);
   document.getElementById('jobType').value='digital';
@@ -712,9 +714,10 @@ async function saveEstimate(){
       else throw err;
     }
     currentEstimateId=saved.id;
+    currentEstimateNumber=saved.estimate_number||'';
     toast('Estimate '+saved.estimate_number+' saved!');
-    // Show the estimate number in the job name field
-    document.getElementById('jobName').value=saved.estimate_number+' — '+jobName;
+    // Keep the job name field clean — the estimate number shows separately.
+    document.getElementById('jobName').value=jobName;
     calc();
     renderSavedActionBar(saved, jobName);
   }catch(e){toast('Error saving: '+e.message);}
@@ -1347,7 +1350,8 @@ async function openEstimateDetail(e){
     if(e.job_type){document.getElementById('jobType').value=e.job_type;toggleJobType();}
   }
   var jobName=stripEstNum(e.job_name||'');
-  document.getElementById('jobName').value=(e.estimate_number?e.estimate_number+' — ':'')+jobName;
+  currentEstimateNumber=e.estimate_number||'';
+  document.getElementById('jobName').value=jobName; // just the name; number shows separately
   renderSavedActionBar(e, jobName);
   calc();
 }
