@@ -1156,6 +1156,39 @@ function jobSpecBlocks(cfg){
   return out.join('');
 }
 
+// Job-ticket specs: per-component material/size/qty + a production CHECKLIST
+// (one step per line, checkbox, grouped by department in production order).
+function jobTicketSpecsHtml(cfg){
+  if(!cfg) return '<div style="color:#888">No detailed specs stored (order created manually — see notes below).</div>';
+  var out=[];
+  var jt = cfg.jobType==='wide' ? 'Wide format' : 'Digital print';
+  var qty = cfg.jobType==='wide' ? cfg.wfQty : cfg.qty;
+  var top='<div class="jobline"><strong>'+jtEsc(jt)+'</strong> · Qty <strong>'+jtEsc(qty||'—')+'</strong>'+(cfg.sides?(' · '+jtEsc(cfg.sides)+'-sided'):'');
+  if(cfg.jobType!=='wide'){ var dd=[]; if(cfg.paperSize)dd.push('Size '+jtEsc(cfg.paperSize)); if(cfg.colorMode)dd.push(cfg.colorMode==='color'?'Color':'B&W'); if(dd.length) top+=' · '+dd.join(' · '); }
+  out.push(top+'</div>');
+  (cfg.components||[]).forEach(function(c){
+    var L=c.layout||{}; var meta=[];
+    if(L.material_name) meta.push('<strong>Material:</strong> '+jtEsc(L.material_name));
+    if(L.fw&&L.fh) meta.push('<strong>Size:</strong> '+jtEsc(L.fw)+'"×'+jtEsc(L.fh)+'"');
+    if(L.qty) meta.push('<strong>Qty:</strong> '+jtEsc(L.qty));
+    if(L.sides) meta.push(jtEsc(L.sides)+'-sided');
+    var steps=[];
+    (c.processTabs||[]).forEach(function(t){
+      (t.items||[]).forEach(function(it){
+        var nm=(it.name&&it.name.trim())?it.name:t.name;
+        var extra=(it.kind==='press'&&it.white)?' <span class="tagwhite">+ white ink</span>':'';
+        steps.push('<div class="step"><span class="chk"></span><span class="dept">'+jtEsc(t.name)+'</span><span class="stepname">'+jtEsc(nm)+extra+'</span></div>');
+      });
+    });
+    out.push('<div class="compspec">'+
+      '<div class="compname">'+jtEsc(c.name||'Component')+'</div>'+
+      (meta.length?'<div class="compmeta">'+meta.join(' &nbsp;·&nbsp; ')+'</div>':'')+
+      (steps.length?'<div class="stephead">Production steps</div>'+steps.join(''):'<div class="nostep">No production steps listed</div>')+
+    '</div>');
+  });
+  return out.join('');
+}
+
 // Populate the specs area in the order modal (pulls specs from the linked estimate).
 async function loadOrderSpecs(o){
   var el=document.getElementById('orderSpecs'); if(!el) return;
@@ -1215,7 +1248,18 @@ window.printJobTicket = async function(orderId){
       '.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;border:1px solid #ddd;border-radius:8px;padding:14px}'+
       '.cell .cl{font-size:9px;text-transform:uppercase;letter-spacing:.5px;color:#999;margin-bottom:3px}'+
       '.cell .cv{font-size:13px}'+
-      '.specs{border:1px solid #ddd;border-radius:8px;padding:14px;font-size:13px;line-height:1.55}'+
+      '.jobline{font-size:14px;margin-bottom:12px}'+
+      '.compspec{border:1px solid #ddd;border-radius:8px;padding:12px 14px;margin-bottom:12px;break-inside:avoid}'+
+      '.compname{font-size:15px;font-weight:700;margin-bottom:4px}'+
+      '.compmeta{font-size:13px;color:#333;margin-bottom:10px}'+
+      '.stephead{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#888;font-weight:600;margin:4px 0 4px}'+
+      '.step{display:flex;align-items:center;font-size:14px;padding:6px 0;border-bottom:1px dashed #eee}'+
+      '.step:last-child{border-bottom:none}'+
+      '.chk{display:inline-block;width:15px;height:15px;border:1.5px solid #333;border-radius:3px;margin-right:10px;flex-shrink:0}'+
+      '.dept{display:inline-block;min-width:82px;font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:#888;font-weight:600;margin-right:8px;flex-shrink:0}'+
+      '.stepname{font-weight:500}'+
+      '.tagwhite{background:#eef;color:#334;font-size:10px;font-weight:600;padding:1px 6px;border-radius:10px;margin-left:6px}'+
+      '.nostep{font-size:12px;color:#aaa}'+
       '.contact{font-size:13px;line-height:1.6}'+
       '.notes{margin-top:14px;background:#f9f8f6;border-radius:8px;padding:12px 14px;font-size:13px;line-height:1.55}'+
       '.notes .cl{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#888;margin-bottom:4px}'+
@@ -1230,7 +1274,7 @@ window.printJobTicket = async function(orderId){
       '<div class="sec"><div class="jobname">'+esc(o.job_name)+'</div></div>'+
       '<div class="sec"><div class="sl">Customer</div><div class="contact">'+contact.join('<br>')+'</div></div>'+
       '<div class="sec"><div class="grid">'+info+'</div></div>'+
-      '<div class="sec"><div class="sl">Job specifications</div><div class="specs">'+jobSpecBlocks(cfg)+'</div></div>'+
+      '<div class="sec"><div class="sl">Job specifications</div>'+jobTicketSpecsHtml(cfg)+'</div>'+
       notesBlock+
       '</body></html>';
     var w=window.open('','_blank');
