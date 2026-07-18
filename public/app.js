@@ -47,7 +47,7 @@ async function api(method,path,body){
   var opts={method:method,headers:{'Content-Type':'application/json'}};
   if(body)opts.body=JSON.stringify(body);
   var r=await fetch(API+path,opts);
-  if(!r.ok){var e=await r.json();throw new Error(e.error||'Request failed');}
+  if(!r.ok){var e=await r.json().catch(function(){return {};});var err=new Error(e.error||'Request failed');err.status=r.status;throw err;}
   return r.json();
 }
 
@@ -689,9 +689,17 @@ async function saveEstimate(){
     notes:document.getElementById('jobNotes').value.trim()
   };
   try{
-    var saved = currentEstimateId
-      ? await api('PUT','/estimates/'+currentEstimateId,body)
-      : await api('POST','/estimates',body);
+    var saved;
+    try{
+      saved = currentEstimateId
+        ? await api('PUT','/estimates/'+currentEstimateId,body)
+        : await api('POST','/estimates',body);
+    }catch(err){
+      // The estimate we tried to update no longer exists (stale/deleted id):
+      // create a fresh one instead of failing.
+      if(currentEstimateId && err.status===404){ currentEstimateId=null; saved = await api('POST','/estimates',body); }
+      else throw err;
+    }
     currentEstimateId=saved.id;
     toast('Estimate '+saved.estimate_number+' saved!');
     // Show the estimate number in the job name field
