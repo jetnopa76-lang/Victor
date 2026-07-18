@@ -404,6 +404,19 @@ window.getComponentsBreakdown = function() {
 
 window.getComponentsTotal = calcAllComponentsTotal;
 
+// Serialize the current components (deep copy) for saving into an estimate.
+window.exportComponents = function() {
+  try { return JSON.parse(JSON.stringify(components)); } catch (e) { return []; }
+};
+
+// Restore components from a saved estimate and refresh the UI.
+window.importComponents = function(arr) {
+  components = Array.isArray(arr) ? arr : [];
+  currentCompIdx = null;
+  if (document.getElementById('compListItems')) renderCompList();
+  updateAddCompBtn();
+};
+
 window.openNewComp = function() {
   components.push(newComponent('New component'));
   currentCompIdx = components.length - 1;

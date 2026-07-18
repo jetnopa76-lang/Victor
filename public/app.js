@@ -1,6 +1,8 @@
 
 const API = '/api';
 var customers=[], reps=[], tiers=[], lastCalc={sell:0,cost:0,profit:0,tax:0,total:0,taxPct:0,margin:0,comm:0,commPct:0,netProfit:0};
+var currentEstimateId=null; // id of the estimate currently loaded in the editor (null = new)
+var currentEstimateStatus='draft'; // preserve status when re-saving an existing estimate
 
 // ── HEALTH CHECK ──────────────────────────────────────────────
 async function checkHealth(){
@@ -594,33 +596,108 @@ window.exportCustomerCopy = function() {
   w.document.close();
 };
 
+// Strip a leading "EST-YYYY-NNNN — " prefix so re-saving doesn't stack prefixes.
+function stripEstNum(name){ return (name||'').replace(/^EST-\d{4}-\d{4} — /,''); }
+
+// Capture the full estimator state so a saved estimate can be reopened exactly.
+function collectJobConfig(){
+  function v(id){ var el=document.getElementById(id); return el?el.value:undefined; }
+  return {
+    _v:1,
+    jobType:v('jobType'),
+    customer_id:v('customerSel')||'', rep:v('repSel')||'', commPct:v('commPct'),
+    margin:v('marginSlider'), rush:v('rushFee'), taxRate:v('taxRate'),
+    notes:v('jobNotes'),
+    // digital
+    qty:v('qty'), sides:v('sides'), paperSize:v('paperSize'), colorMode:v('colorMode'), stockSel:v('stockSel'),
+    // wide
+    wfQty:v('wfQty'), mediaSel:v('mediaSel'),
+    // shop rate settings (so the estimate reproduces even if defaults change)
+    rates:{ rateColor:v('rateColor'), rateBW:v('rateBW'), rmLetter:v('rmLetter'), rmLegal:v('rmLegal'),
+            rmTabloid:v('rmTabloid'), rmA4:v('rmA4'), setupDigital:v('setupDigital'), setupWide:v('setupWide') },
+    postPress:JSON.parse(JSON.stringify(postPress)),
+    stocks:JSON.parse(JSON.stringify(stocks)),
+    components:(typeof exportComponents==='function')?exportComponents():[]
+  };
+}
+
+// Restore the estimator from a saved job_config.
+function applyJobConfig(cfg){
+  if(!cfg) return;
+  function set(id,val){ var el=document.getElementById(id); if(el&&val!==undefined&&val!==null) el.value=val; }
+  // Restore shared globals first so re-renders use the saved data
+  if(cfg.stocks&&cfg.stocks.digital&&cfg.stocks.wide) stocks=cfg.stocks;
+  if(Array.isArray(cfg.postPress)) postPress=cfg.postPress;
+  if(typeof importComponents==='function') importComponents(cfg.components||[]);
+  set('jobType',cfg.jobType);
+  if(cfg.rates){ Object.keys(cfg.rates).forEach(function(k){ set(k,cfg.rates[k]); }); }
+  buildStockSelects(); // populate stock/media <option>s from restored stocks
+  set('customerSel',cfg.customer_id); set('repSel',cfg.rep); set('commPct',cfg.commPct);
+  set('marginSlider',cfg.margin);
+  var md=document.getElementById('marginDisplay'); if(md&&cfg.margin!=null) md.textContent=cfg.margin+'%';
+  set('rushFee',cfg.rush); set('taxRate',cfg.taxRate); set('jobNotes',cfg.notes);
+  set('qty',cfg.qty); set('sides',cfg.sides); set('paperSize',cfg.paperSize); set('colorMode',cfg.colorMode);
+  set('stockSel',cfg.stockSel);
+  set('wfQty',cfg.wfQty); set('mediaSel',cfg.mediaSel);
+  renderPPList();
+}
+
+// Render the action bar for a saved/opened estimate (with a New estimate button).
+function renderSavedActionBar(saved, jobName){
+  var bar=document.getElementById('estActionBar');
+  bar.style.display='flex';
+  bar.innerHTML='<div style="font-size:12px;font-weight:500;color:#888;display:flex;align-items:center;padding:0 4px"><span style="font-family:monospace;color:#1a1a18">'+(saved.estimate_number||'')+'</span></div>'+
+    '<button class="btn btn-primary" onclick="saveEstimate()">Save estimate</button>'+
+    '<button class="btn btn-blue" onclick="exportCustomerCopy()">Customer copy</button>'+
+    (saved.status!=='approved'?'<button class="btn" style="background:#EAF3DE;border-color:#3B6D11;color:#27500A" onclick="openConvertModal('+saved.id+',\''+stripEstNum(jobName).replace(/'/g,"\\'")+'\','+parseFloat(saved.total||lastCalc.total||0)+')">Convert to order</button>':'<span style="font-size:12px;color:#27500A;padding:0 8px">✓ Converted to order</span>')+
+    '<button class="btn" onclick="newEstimate()">+ New estimate</button>';
+}
+
+// Start a fresh, blank estimate.
+function newEstimate(){
+  currentEstimateId=null;
+  currentEstimateStatus='draft';
+  clearJob();
+  if(typeof importComponents==='function') importComponents([]);
+  document.getElementById('jobType').value='digital';
+  document.getElementById('qty').value=250;
+  document.getElementById('sides').value=1;
+  var wf=document.getElementById('wfQty'); if(wf) wf.value=1;
+  toggleJobType();
+  var bar=document.getElementById('estActionBar');
+  bar.innerHTML='<button class="btn btn-primary" onclick="saveEstimate()">Save estimate</button>'+
+    '<button class="btn btn-blue" onclick="exportCustomerCopy()">Customer copy</button>';
+  calc();
+  toast('New estimate');
+}
+
 async function saveEstimate(){
   var custId=document.getElementById('customerSel').value||null;
   var repSel=document.getElementById('repSel');
   var repId=repSel.value||null;
   var type=document.getElementById('jobType').value;
-  var jobName=document.getElementById('jobName').value||'Estimate';
+  var jobName=stripEstNum(document.getElementById('jobName').value)||'Estimate';
   var body={
     customer_id:custId,sales_rep_id:repId,
     job_name:jobName,
-    job_type:type,status:'draft',
+    job_type:type,status:currentEstimateId?currentEstimateStatus:'draft',
     sell_price:lastCalc.sell,cogs:lastCalc.cost,gross_profit:lastCalc.profit,
     margin_pct:lastCalc.margin*100,tax_pct:lastCalc.taxPct,tax_amt:lastCalc.tax,
     comm_pct:lastCalc.commPct,comm_amt:lastCalc.comm,
     net_profit:lastCalc.netProfit,total:lastCalc.total,
+    job_config:collectJobConfig(),
     notes:document.getElementById('jobNotes').value.trim()
   };
   try{
-    var saved=await api('POST','/estimates',body);
+    var saved = currentEstimateId
+      ? await api('PUT','/estimates/'+currentEstimateId,body)
+      : await api('POST','/estimates',body);
+    currentEstimateId=saved.id;
     toast('Estimate '+saved.estimate_number+' saved!');
-    // Update the job name field to show the estimate number
+    // Show the estimate number in the job name field
     document.getElementById('jobName').value=saved.estimate_number+' — '+jobName;
     calc();
-    var bar=document.getElementById('estActionBar');
-    bar.innerHTML='<div style="font-size:12px;font-weight:500;color:#888;display:flex;align-items:center;padding:0 4px"><span style="font-family:monospace;color:#1a1a18">'+saved.estimate_number+'</span></div>'+
-      '<button class="btn btn-primary" onclick="saveEstimate()">Save estimate</button>'+
-      '<button class="btn btn-blue" onclick="exportCustomerCopy()">Customer copy</button>'+
-      '<button class="btn" style="background:#EAF3DE;border-color:#3B6D11;color:#27500A" onclick="openConvertModal('+saved.id+',\''+jobName.replace(/'/g,"\\'")+'\','+lastCalc.total+')">Convert to order</button>';
+    renderSavedActionBar(saved, jobName);
   }catch(e){toast('Error saving: '+e.message);}
 }
 
@@ -1070,18 +1147,23 @@ async function openEstimateById(id){
 
 async function openEstimateDetail(e){
   if(typeof e==='string')e=JSON.parse(e);
+  currentEstimateId=e.id;
+  currentEstimateStatus=e.status||'draft';
   showPage('estimator',document.querySelectorAll('.nav-tab')[0]);
-  if(e.customer_id){document.getElementById('customerSel').value=e.customer_id;onCustomerChange();}
-  var jobName=e.job_name||'';
-  if(jobName.match(/^EST-\d{4}-\d{4} — /))jobName=jobName.replace(/^EST-\d{4}-\d{4} — /,'');
-  document.getElementById('jobName').value=jobName;
-  if(e.job_type){document.getElementById('jobType').value=e.job_type;toggleJobType();}
-  var bar=document.getElementById('estActionBar');
-  bar.style.display='flex';
-  bar.innerHTML='<div style="font-size:12px;font-weight:500;color:#888;padding:0 4px"><span style="font-family:monospace;color:#1a1a18">'+(e.estimate_number||'')+'</span></div>'+
-    '<button class="btn btn-primary" onclick="saveEstimate()">Save estimate</button>'+
-    '<button class="btn btn-blue" onclick="window.print()">Export PDF</button>'+
-    (e.status!=='approved'?'<button class="btn" style="background:#EAF3DE;border-color:#3B6D11;color:#27500A" onclick="openConvertModal('+e.id+',\''+jobName.replace(/'/g,"\\'")+'\','+parseFloat(e.total||0)+')">Convert to order</button>':'<span style="font-size:12px;color:#27500A;padding:0 8px">✓ Converted to order</span>');
+  // Restore the full saved configuration (quantities, stocks, post-press,
+  // components, margin, tax, etc.). Falls back gracefully for older estimates
+  // that were saved before job_config existed.
+  var cfg=e.job_config;
+  if(typeof cfg==='string'){ try{ cfg=JSON.parse(cfg); }catch(_){ cfg=null; } }
+  if(cfg){
+    applyJobConfig(cfg);
+  } else {
+    if(e.customer_id){document.getElementById('customerSel').value=e.customer_id;onCustomerChange();}
+    if(e.job_type){document.getElementById('jobType').value=e.job_type;toggleJobType();}
+  }
+  var jobName=stripEstNum(e.job_name||'');
+  document.getElementById('jobName').value=(e.estimate_number?e.estimate_number+' — ':'')+jobName;
+  renderSavedActionBar(e, jobName);
   calc();
 }
 
