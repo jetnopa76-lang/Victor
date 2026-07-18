@@ -2,7 +2,7 @@
 var _ms=null,_mc=null,_nuf=false;
 
 function _e(s){return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-async function _a(m,p,b){var o={method:m,headers:{'Content-Type':'application/json'}};if(b)o.body=JSON.stringify(b);var r=await fetch(p,o);return r.json();}
+async function _a(m,p,b){var o={method:m,headers:{'Content-Type':'application/json'}};if(b)o.body=JSON.stringify(b);var r=await fetch(p,o);if(m!=='GET'&&/\/(cost-centers|materials)/.test(p)&&typeof window.invalidateComponentCaches==='function')window.invalidateComponentCaches();return r.json();}
 
 // Inject styles
 (function(){

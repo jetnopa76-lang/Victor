@@ -47,6 +47,18 @@ function loadCostCenterItems() {
     .catch(function(){ costCenterItemsLoading = false; cachedCostCenterItems = []; });
 }
 
+// Drop the cached materials + cost-center rates so the next component-editor
+// open refetches fresh Admin data. Called by Admin after any price edit so
+// changes there flow straight into estimates (no page reload needed).
+window.invalidateComponentCaches = function() {
+  cachedCostCenterItems = null; costCenterItemsLoading = false;
+  cachedMaterials = null; materialsLoading = false;
+  var ov = document.getElementById('compOverlay');
+  if (ov && ov.style.display === 'flex' && currentCompIdx !== null) {
+    loadMaterials(); loadCostCenterItems(); // editor is open now → refresh live
+  }
+};
+
 function getMaterialCategories() {
   if (!cachedMaterials) return [];
   var seen = {};
