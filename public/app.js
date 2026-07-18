@@ -952,7 +952,7 @@ function renderOrderList(){
       '<td class="muted">'+(o.operator||'—')+'</td>'+
       '<td><span class="badge b-'+o.payment_status+'">'+PAY_LABELS[o.payment_status]+'</span></td>'+
       '<td class="muted">$'+parseFloat(o.total||0).toFixed(2)+'</td>'+
-      '<td><button class="btn btn-sm" onclick=\'openOrderModal('+JSON.stringify(o)+')\'>Edit</button></td>'+
+      '<td style="white-space:nowrap"><button class="btn btn-sm" onclick=\'openOrderModal('+JSON.stringify(o)+')\'>Open</button> <button class="btn btn-sm" onclick="printJobTicket('+o.id+')">🖨 Ticket</button></td>'+
     '</tr>';
   }).join('');
 }
@@ -976,7 +976,8 @@ function renderKanban(){
           '<span style="margin-left:auto;font-size:12px;font-weight:500;color:var(--color-text-primary)">$'+parseFloat(o.total||0).toFixed(2)+'</span>'+
         '</div>'+
         '<div style="margin-top:8px;border-top:0.5px solid var(--color-border-tertiary);padding-top:6px">'+
-          '<button class="btn btn-sm" style="font-size:11px;padding:3px 8px" onclick=\'openOrderModal('+JSON.stringify(o)+')\'>Edit</button>'+
+          '<button class="btn btn-sm" style="font-size:11px;padding:3px 8px" onclick=\'openOrderModal('+JSON.stringify(o)+')\'>Open</button>'+
+          '<button class="btn btn-sm" style="font-size:11px;padding:3px 8px;margin-left:4px" onclick="printJobTicket('+o.id+')">🖨</button>'+
         '</div>'+
       '</div>';
     }).join('');
@@ -1105,8 +1106,10 @@ async function confirmConvert(){
 
 function openOrderModal(o){
   if(typeof o==='string')o=JSON.parse(o);
+  window._currentOrder=o;
   document.getElementById('orderId').value=o.id;
   document.getElementById('orderModalJobNum').textContent=o.job_number+' — '+o.job_name;
+  loadOrderSpecs(o);
   var stageSelect=document.getElementById('o_stage');
   stageSelect.innerHTML=allStages.map(function(s){return '<option value="'+s.id+'"'+(s.id==o.stage_id?' selected':'')+'>'+s.name+'</option>';}).join('');
   document.getElementById('o_pay').value=o.payment_status||'unpaid';
@@ -1116,6 +1119,124 @@ function openOrderModal(o){
   document.getElementById('o_notes').value=o.notes||'';
   openModal('orderModal');
 }
+
+function jtEsc(s){ return String(s==null?'':s).replace(/[&<>"']/g, function(ch){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[ch]; }); }
+
+// Build the job-spec block from a saved estimate job_config (materials, sizes,
+// quantities, and every process step) — shared by the order modal + job ticket.
+function jobSpecBlocks(cfg){
+  if(!cfg) return '<div style="color:#888">No detailed specs stored (order created manually — see notes below).</div>';
+  var out=[];
+  var jt = cfg.jobType==='wide' ? 'Wide format' : 'Digital print';
+  var qty = cfg.jobType==='wide' ? cfg.wfQty : cfg.qty;
+  out.push('<div><strong>'+jtEsc(jt)+'</strong> · Qty <strong>'+jtEsc(qty||'—')+'</strong>'+(cfg.sides?(' · '+jtEsc(cfg.sides)+'-sided'):'')+'</div>');
+  if(cfg.jobType!=='wide'){
+    var dd=[];
+    if(cfg.paperSize) dd.push('Size '+jtEsc(cfg.paperSize));
+    if(cfg.colorMode) dd.push(cfg.colorMode==='color'?'Color':'B&W');
+    if(dd.length) out.push('<div style="color:#666">'+dd.join(' · ')+'</div>');
+  }
+  (cfg.components||[]).forEach(function(c){
+    var L=c.layout||{}; var meta=[];
+    if(L.material_name) meta.push(jtEsc(L.material_name));
+    if(L.fw&&L.fh) meta.push(jtEsc(L.fw)+'"×'+jtEsc(L.fh)+'"');
+    if(L.qty) meta.push('Qty '+jtEsc(L.qty));
+    if(L.sides) meta.push(jtEsc(L.sides)+'-sided');
+    var procs=[];
+    (c.processTabs||[]).forEach(function(t){
+      (t.items||[]).forEach(function(it){
+        var nm = (it.name && it.name.trim()) ? it.name : t.name;
+        if(it.kind==='press' && it.white) nm += ' (+white ink)';
+        procs.push(jtEsc(nm));
+      });
+    });
+    out.push('<div style="margin-top:6px;padding-top:6px;border-top:1px dashed #e0ded8"><strong>'+jtEsc(c.name||'Component')+'</strong>'+(meta.length?' — '+meta.join(' · '):'')+(procs.length?'<div style="color:#666;margin-top:2px">Processes: '+procs.join(', ')+'</div>':'')+'</div>');
+  });
+  return out.join('');
+}
+
+// Populate the specs area in the order modal (pulls specs from the linked estimate).
+async function loadOrderSpecs(o){
+  var el=document.getElementById('orderSpecs'); if(!el) return;
+  el.innerHTML='<span style="color:#aaa">Loading job specs…</span>';
+  var cfg=null;
+  try{
+    if(o.estimate_id){
+      var e=await api('GET','/estimates/'+o.estimate_id);
+      cfg=e.job_config; if(typeof cfg==='string'){ try{ cfg=JSON.parse(cfg); }catch(_){ cfg=null; } }
+    }
+  }catch(_){}
+  window._currentOrderCfg=cfg;
+  el.innerHTML=jobSpecBlocks(cfg);
+}
+
+window.printJobTicketCurrent = function(){
+  var id=document.getElementById('orderId').value;
+  if(id) printJobTicket(id);
+};
+
+// Open a printable production Job Ticket for an order.
+window.printJobTicket = async function(orderId){
+  try{
+    var o=await api('GET','/orders/'+orderId);
+    var cfg=null;
+    if(o.estimate_id){ try{ var e=await api('GET','/estimates/'+o.estimate_id); cfg=e.job_config; if(typeof cfg==='string')cfg=JSON.parse(cfg); }catch(_){}}
+    var esc=jtEsc;
+    var contact=[];
+    if(o.company) contact.push('<strong>'+esc(o.company)+'</strong>');
+    if(o.customer_name && o.customer_name.trim()) contact.push(esc(o.customer_name));
+    if(o.customer_phone) contact.push('☎ '+esc(o.customer_phone));
+    if(o.customer_email) contact.push(esc(o.customer_email));
+    if(!contact.length) contact.push('<em style="color:#aaa">Walk-in customer</em>');
+    var due=o.due_date?new Date(o.due_date).toLocaleDateString(undefined,{weekday:'short',year:'numeric',month:'short',day:'numeric'}):'—';
+    var created=o.created_at?new Date(o.created_at).toLocaleDateString():new Date().toLocaleDateString();
+    var payLabels={unpaid:'UNPAID',deposit:'Deposit received',paid:'PAID IN FULL'};
+    function cell(label,val){ return '<div class="cell"><div class="cl">'+label+'</div><div class="cv">'+val+'</div></div>'; }
+    var info =
+      cell('Due date','<strong style="font-size:15px">'+esc(due)+'</strong>')+
+      cell('Operator', esc(o.operator||'________________'))+
+      cell('Stage', esc(o.stage_name||'—'))+
+      cell('Payment', (payLabels[o.payment_status]||esc(o.payment_status||'—')))+
+      cell('Deposit', '$'+parseFloat(o.deposit_amt||0).toFixed(2))+
+      cell('Order total', '$'+parseFloat(o.total||o.sell_price||0).toFixed(2))+
+      cell('Sales rep', esc(o.rep_name||'—'))+
+      cell('Estimate', esc(o.estimate_id?('#'+o.estimate_id):'—'));
+    var notesBlock=o.notes?'<div class="notes"><div class="cl">Production notes</div>'+esc(o.notes).replace(/\n/g,'<br>')+'</div>':'';
+    var html='<!DOCTYPE html><html><head><title>Job Ticket '+esc(o.job_number)+'</title><style>'+
+      'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;max-width:8.5in;margin:0 auto;padding:0.5in;color:#1a1a18}'+
+      '.top{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #1a1a18;padding-bottom:12px;margin-bottom:18px}'+
+      'h1{font-size:24px;font-weight:700;letter-spacing:1px;margin:0}'+
+      '.jobno{font-family:monospace;font-size:20px;font-weight:700;margin-top:2px}'+
+      '.top-right{text-align:right;font-size:12px;color:#666}'+
+      '.sec{margin-bottom:18px}'+
+      '.sl{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#888;margin-bottom:6px;font-weight:600}'+
+      '.jobname{font-size:18px;font-weight:600;margin-bottom:4px}'+
+      '.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;border:1px solid #ddd;border-radius:8px;padding:14px}'+
+      '.cell .cl{font-size:9px;text-transform:uppercase;letter-spacing:.5px;color:#999;margin-bottom:3px}'+
+      '.cell .cv{font-size:13px}'+
+      '.specs{border:1px solid #ddd;border-radius:8px;padding:14px;font-size:13px;line-height:1.55}'+
+      '.contact{font-size:13px;line-height:1.6}'+
+      '.notes{margin-top:14px;background:#f9f8f6;border-radius:8px;padding:12px 14px;font-size:13px;line-height:1.55}'+
+      '.notes .cl{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#888;margin-bottom:4px}'+
+      '.actions{display:flex;gap:8px;margin-bottom:18px}'+
+      '.btn{padding:8px 16px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;font-size:13px}'+
+      '.btn-primary{background:#1a1a18;color:#fff;border-color:#1a1a18}'+
+      '@media print{body{padding:0.35in}.no-print{display:none}}'+
+      '</style></head><body>'+
+      '<div class="actions no-print"><button class="btn btn-primary" onclick="window.print()">Print / Save as PDF</button><button class="btn" onclick="window.close()">Close</button></div>'+
+      '<div class="top"><div><h1>JOB TICKET</h1><div class="jobno">'+esc(o.job_number)+'</div></div>'+
+        '<div class="top-right"><div>Created '+esc(created)+'</div><div style="margin-top:2px">'+esc(o.job_type==='wide'?'Wide format':'Digital')+'</div></div></div>'+
+      '<div class="sec"><div class="jobname">'+esc(o.job_name)+'</div></div>'+
+      '<div class="sec"><div class="sl">Customer</div><div class="contact">'+contact.join('<br>')+'</div></div>'+
+      '<div class="sec"><div class="grid">'+info+'</div></div>'+
+      '<div class="sec"><div class="sl">Job specifications</div><div class="specs">'+jobSpecBlocks(cfg)+'</div></div>'+
+      notesBlock+
+      '</body></html>';
+    var w=window.open('','_blank');
+    if(!w){ toast('Allow pop-ups to print the job ticket'); return; }
+    w.document.write(html); w.document.close();
+  }catch(e){ toast('Error building job ticket: '+e.message); }
+};
 
 async function saveOrder(){
   var id=document.getElementById('orderId').value;

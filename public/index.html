@@ -793,9 +793,10 @@ td.muted{color:#888;font-size:12px}
 <!-- ===== ORDER EDIT MODAL ===== -->
 <div class="modal-backdrop" id="orderModal">
   <div class="modal" style="max-width:480px">
-    <h3 id="orderModalTitle">Edit order</h3>
+    <h3 id="orderModalTitle">Order</h3>
     <input type="hidden" id="orderId">
     <div style="font-size:13px;font-weight:500;color:#1a1a18;margin-bottom:1rem" id="orderModalJobNum"></div>
+    <div id="orderSpecs" style="font-size:12px;color:#444;background:#f9f8f6;border-radius:8px;padding:10px 12px;margin-bottom:1rem;line-height:1.55"></div>
     <div class="form-grid">
       <div class="field"><label>Stage</label><select id="o_stage"></select></div>
       <div class="field"><label>Payment status</label>
@@ -812,6 +813,7 @@ td.muted{color:#888;font-size:12px}
     <div class="field" style="margin-top:10px"><label>Notes</label><textarea id="o_notes" style="height:64px"></textarea></div>
     <div class="modal-footer">
       <button class="btn btn-primary" onclick="saveOrder()">Save</button>
+      <button class="btn" onclick="printJobTicketCurrent()">🖨 Job Ticket</button>
       <button class="btn btn-blue" id="createInvBtn" onclick="createInvFromCurrentOrder()">Create invoice</button>
       <button class="btn" onclick="closeModal('orderModal')">Cancel</button>
       <button class="btn btn-danger" style="margin-left:auto" onclick="deleteOrder()">Delete order</button>
