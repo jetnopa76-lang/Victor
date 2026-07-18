@@ -396,30 +396,35 @@ function calc(){
   var opt=sel.options[sel.selectedIndex];
   var tierDiscount=parseFloat(opt.getAttribute('data-discount'))||0;
 
-  var cost=0,breakdown=[],qty=1,sides=1,sqft=0;
+  var cost=0,breakdown=[],qty=0,sides=1,sqft=0;
   if(type==='digital'){
-    qty=parseInt(document.getElementById('qty').value)||1;
+    qty=parseInt(document.getElementById('qty').value)||0;
     sides=parseInt(document.getElementById('sides').value)||1;
     var size=document.getElementById('paperSize').value;
     var cm=document.getElementById('colorMode').value;
     var stockId=document.getElementById('stockSel').value;
     var stock=stocks.digital.filter(function(s){return s.id===stockId;})[0]||stocks.digital[0];
     if(!stock)return;
-    var rm=rmMap[size]||1;
-    var paperCost=stock.costPerSheet*qty*rm;
-    var inkCost=(cm==='color'?rateColor:rateBW)*rm*qty*sides;
-    cost=paperCost+inkCost+setupD;
-    breakdown=[{label:'Paper & stock',detail:stock.name+' x '+qty,val:paperCost},{label:'Ink ('+(cm==='color'?'color':'B&W')+', '+sides+'s)',detail:'',val:inkCost},{label:'Setup',detail:'',val:setupD}];
+    // Empty job (qty 0) → no base cost; components/post-press still add if present.
+    if(qty>0){
+      var rm=rmMap[size]||1;
+      var paperCost=stock.costPerSheet*qty*rm;
+      var inkCost=(cm==='color'?rateColor:rateBW)*rm*qty*sides;
+      cost=paperCost+inkCost+setupD;
+      breakdown=[{label:'Paper & stock',detail:stock.name+' x '+qty,val:paperCost},{label:'Ink ('+(cm==='color'?'color':'B&W')+', '+sides+'s)',detail:'',val:inkCost},{label:'Setup',detail:'',val:setupD}];
+    }
   } else {
-    qty=parseInt(document.getElementById('wfQty').value)||1;
+    qty=parseInt(document.getElementById('wfQty').value)||0;
     calcImposition();
     sqft=impResult.totalSqft||0;
     // Substrate / Imposition are handled by Components (Layout tab).
-    // Only the wide-format setup fee is auto-included here.
-    cost=setupW;
-    breakdown=[
-      {label:'Setup',detail:'',val:setupW}
-    ];
+    // Only the wide-format setup fee is auto-included here (skipped for empty jobs).
+    if(qty>0){
+      cost=setupW;
+      breakdown=[
+        {label:'Setup',detail:'',val:setupW}
+      ];
+    }
   }
   var ppBD=[];
   postPress.forEach(function(p){
@@ -463,7 +468,13 @@ function calc(){
   var custLabel=document.getElementById('customerSel').value?custOpt.text.split('(')[0].trim():'';
   var mainRows=breakdown.map(function(b){return '<tr><td>'+b.label+(b.detail?'<br><span style="font-size:11px;color:#aaa">'+b.detail+'</span>':'')+'</td><td>$'+b.val.toFixed(2)+'</td></tr>';}).join('');
   var ppRows=ppBD.length?'<tr><td colspan="2" style="padding-top:10px;font-size:11px;font-weight:500;color:#aaa;text-transform:uppercase;letter-spacing:.06em">Post-press</td></tr>'+ppBD.map(function(p){return '<tr><td>'+p.label+'</td><td>$'+p.val.toFixed(2)+'</td></tr>';}).join(''):'';
-  var compRows=compBD.length?'<tr><td colspan="2" style="padding-top:10px;font-size:11px;font-weight:500;color:#aaa;text-transform:uppercase;letter-spacing:.06em">Components</td></tr>'+compBD.map(function(c){return '<tr><td>'+c.label+(c.detail?'<br><span style="font-size:11px;color:#aaa">'+c.detail+'</span>':'')+'</td><td>$'+c.val.toFixed(2)+'</td></tr>';}).join(''):'';
+  var compItems=(typeof getComponentsItemized==='function')?getComponentsItemized():[];
+  var compRows=compItems.length?compItems.map(function(comp){
+    var header='<tr><td colspan="2" style="padding-top:10px;font-size:11px;font-weight:500;color:#aaa;text-transform:uppercase;letter-spacing:.06em">'+comp.name+'</td></tr>';
+    var lines=comp.lines.map(function(l){return '<tr><td style="padding-left:8px">'+l.label+(l.detail?'<br><span style="font-size:11px;color:#aaa">'+l.detail+'</span>':'')+'</td><td>$'+l.val.toFixed(2)+'</td></tr>';}).join('');
+    var sub=comp.lines.length>1?'<tr><td style="font-size:11px;color:#aaa;padding-left:8px">'+comp.name+' subtotal</td><td style="font-size:11px;color:#888">$'+comp.total.toFixed(2)+'</td></tr>':'';
+    return header+lines+sub;
+  }).join(''):'';
   var tierRow=tierDiscount>0?'<tr><td style="color:#0C447C">Tier discount ('+tierDiscount+'%)</td><td style="color:#0C447C">- applied</td></tr>':'';
   var taxRow=taxPct>0?'<tr><td style="color:#666">Tax ('+taxPct+'%)</td><td>$'+tax.toFixed(2)+'</td></tr>':'';
   var commRow=commPct>0?'<tr><td style="color:#666">Commission ('+commPct+'%)</td><td>+$'+comm.toFixed(2)+'</td></tr>':'';
@@ -660,9 +671,9 @@ function newEstimate(){
   clearJob();
   if(typeof importComponents==='function') importComponents([]);
   document.getElementById('jobType').value='digital';
-  document.getElementById('qty').value=250;
+  document.getElementById('qty').value=0;      // blank slate — zero until entered
   document.getElementById('sides').value=1;
-  var wf=document.getElementById('wfQty'); if(wf) wf.value=1;
+  var wf=document.getElementById('wfQty'); if(wf) wf.value=0;
   toggleJobType();
   var bar=document.getElementById('estActionBar');
   bar.innerHTML='<button class="btn btn-primary" onclick="saveEstimate()">Save estimate</button>'+

@@ -422,6 +422,41 @@ window.getComponentsBreakdown = function() {
   });
 };
 
+// Fully itemized breakdown: one entry per component, each with its own line
+// items (substrate + every process line) so the estimate can list them all.
+window.getComponentsItemized = function() {
+  return components.map(function(c){
+    var lc = calcLayoutCost(c.layout);
+    var lines = [];
+    if (lc.cost > 0.001) {
+      var subDetail = lc.mode === 'board'
+        ? (lc.sheets + ' board' + (lc.sheets>1?'s':'') + ' · ' + Math.round(lc.sqft) + ' sq ft')
+        : (Math.round(lc.sqft) + ' sq ft' + (lc.sheets>1 ? ' · ' + lc.sheets + ' rolls' : ''));
+      lines.push({ label: 'Substrate — ' + (c.layout.material_name || 'stock'), detail: subDetail, val: lc.cost });
+    }
+    c.processTabs.forEach(function(t){
+      t.items.forEach(function(it){
+        var v = calcItemTotal(it, lc.sqft);
+        if (Math.abs(v) < 0.001) return;
+        var label = (it.name && it.name.trim()) ? it.name : t.name;
+        var detail = t.name;
+        if (it.kind === 'press') {
+          var per = parseFloat(it.sqft_rate||0) + parseFloat(it.ink_cmyk||0) + (it.white ? parseFloat(it.ink_white||0) : 0);
+          detail = t.name + ' · $' + per.toFixed(4) + '/sqft × ' + Math.round(lc.sqft) +
+                   (parseFloat(it.setup||0) > 0 ? ' + $' + parseFloat(it.setup).toFixed(2) + ' setup' : '') +
+                   (it.white ? ' · +white ink' : '');
+        } else if (it.method === 'per_sqft') {
+          detail = t.name + ' · $' + parseFloat(it.rate||0).toFixed(4) + '/sqft × ' + (it.qty||0);
+        } else if (it.method === 'per_unit') {
+          detail = t.name + ' · $' + parseFloat(it.rate||0).toFixed(4) + '/ea × ' + (it.qty||0);
+        }
+        lines.push({ label: label, detail: detail, val: v });
+      });
+    });
+    return { name: c.name || 'Component', total: calcComponentTotal(c), lines: lines };
+  });
+};
+
 window.getComponentsTotal = calcAllComponentsTotal;
 
 // Serialize the current components (deep copy) for saving into an estimate.
