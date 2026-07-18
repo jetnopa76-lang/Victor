@@ -70,12 +70,12 @@ router.get('/items', async (req, res) => {
 
 router.post('/items', async (req, res) => {
   try {
-    const { cost_center_id, code, name, mins_per_unit = 0, speed_per_h = 0, setup_min = 0, ai_rate = 0, dm_rate = 0, unit_cost = 0, min_charge = 0, sort_order = 0 } = req.body;
+    const { cost_center_id, code, name, mins_per_unit = 0, speed_per_h = 0, setup_min = 0, ai_rate = 0, dm_rate = 0, unit_cost = 0, min_charge = 0, sqft_rate = 0, ink_cmyk = 0, ink_white = 0, sort_order = 0 } = req.body;
     if (!cost_center_id || !name) return res.status(400).json({ error: 'cost_center_id and name required' });
     const { rows } = await db.query(
-      `INSERT INTO cost_center_items (cost_center_id, code, name, mins_per_unit, speed_per_h, setup_min, ai_rate, dm_rate, unit_cost, min_charge, sort_order)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
-      [cost_center_id, code, name, mins_per_unit, speed_per_h, setup_min, ai_rate, dm_rate, unit_cost, min_charge, sort_order]);
+      `INSERT INTO cost_center_items (cost_center_id, code, name, mins_per_unit, speed_per_h, setup_min, ai_rate, dm_rate, unit_cost, min_charge, sqft_rate, ink_cmyk, ink_white, sort_order)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
+      [cost_center_id, code, name, mins_per_unit, speed_per_h, setup_min, ai_rate, dm_rate, unit_cost, min_charge, sqft_rate, ink_cmyk, ink_white, sort_order]);
     res.status(201).json(rows[0]);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -95,9 +95,12 @@ router.put('/items/:id', async (req, res) => {
          unit_cost=COALESCE($8, unit_cost),
          min_charge=COALESCE($9, min_charge),
          active=COALESCE($10, active),
-         sort_order=COALESCE($11, sort_order)
+         sort_order=COALESCE($11, sort_order),
+         sqft_rate=COALESCE($13, sqft_rate),
+         ink_cmyk=COALESCE($14, ink_cmyk),
+         ink_white=COALESCE($15, ink_white)
        WHERE id=$12 RETURNING *`,
-      [f.code, f.name, f.mins_per_unit, f.speed_per_h, f.setup_min, f.ai_rate, f.dm_rate, f.unit_cost, f.min_charge, f.active, f.sort_order, req.params.id]);
+      [f.code, f.name, f.mins_per_unit, f.speed_per_h, f.setup_min, f.ai_rate, f.dm_rate, f.unit_cost, f.min_charge, f.active, f.sort_order, req.params.id, f.sqft_rate, f.ink_cmyk, f.ink_white]);
     if (!rows.length) return res.status(404).json({ error: 'Not found' });
     res.json(rows[0]);
   } catch (e) { res.status(500).json({ error: e.message }); }

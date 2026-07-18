@@ -157,12 +157,20 @@ function newProcessItem() {
   return { id: nid(), name: '', method: 'flat', rate: 0, qty: 1 };
 }
 
-function calcItemTotal(item) {
+// Press line: flat Setup + ($/sqft base + CMYK + optional White) × job sq ft.
+// Other lines: rate × qty. `sqft` is the component's printed area.
+function calcItemTotal(item, sqft) {
+  if (item && item.kind === 'press') {
+    var area = parseFloat(sqft || 0);
+    var perSqft = (parseFloat(item.sqft_rate||0)) + (parseFloat(item.ink_cmyk||0)) +
+                  (item.white ? parseFloat(item.ink_white||0) : 0);
+    return parseFloat(item.setup||0) + perSqft * area;
+  }
   return parseFloat(item.rate||0) * parseFloat(item.qty||1);
 }
 
-function calcTabTotal(tab) {
-  return tab.items.reduce(function(s,i){ return s + calcItemTotal(i); }, 0);
+function calcTabTotal(tab, sqft) {
+  return tab.items.reduce(function(s,i){ return s + calcItemTotal(i, sqft); }, 0);
 }
 
 // Is this a rigid board / cut-sheet stock (fixed sheet, bought whole) vs. a
@@ -233,7 +241,7 @@ function calcLayoutCost(layout) {
 
 function calcComponentTotal(comp) {
   var lc = calcLayoutCost(comp.layout);
-  var proc = comp.processTabs.reduce(function(s,t){ return s + calcTabTotal(t); }, 0);
+  var proc = comp.processTabs.reduce(function(s,t){ return s + calcTabTotal(t, lc.sqft); }, 0);
   return lc.cost + proc;
 }
 
@@ -402,10 +410,10 @@ window.getComponentsBreakdown = function() {
     var parts = [];
     if (lc.cost > 0.01) parts.push('Substrate $' + lc.cost.toFixed(2));
     c.processTabs.forEach(function(t){
-      var tt = calcTabTotal(t);
+      var tt = calcTabTotal(t, lc.sqft);
       if (tt > 0.01) parts.push(t.name + ' $' + tt.toFixed(2));
     });
-    var procTotal = c.processTabs.reduce(function(s,t){ return s + calcTabTotal(t); }, 0);
+    var procTotal = c.processTabs.reduce(function(s,t){ return s + calcTabTotal(t, lc.sqft); }, 0);
     return {
       label: c.name || 'Component',
       val: lc.cost + procTotal,
@@ -654,7 +662,7 @@ function buildProcessDropdownOptions(ccId, kind) {
   items.forEach(function(x){
     var label;
     if (isPress) {
-      var rate = parseFloat(x.speed_per_h) > 0 ? (parseFloat(x.ai_rate) / parseFloat(x.speed_per_h)) : 0;
+      var rate = parseFloat(x.sqft_rate||0) + parseFloat(x.ink_cmyk||0); // base + CMYK $/sqft (white optional)
       var modeLabel = x.name.indexOf(x.cc_name + ' — ') === 0 ? x.name.substring(x.cc_name.length + 3) : x.name;
       label = modeLabel + ' · $' + rate.toFixed(4) + '/sqft';
     } else {
@@ -704,8 +712,8 @@ function buildRowMaterialOptions(lib, item) {
             var sel = item && item.cost_center_item_id == x.id ? ' selected' : '';
             var label;
             if (isPress) {
-              // For press, show "<mode> — $X.XXXX/sqft"
-              var rate = parseFloat(x.speed_per_h) > 0 ? (parseFloat(x.ai_rate) / parseFloat(x.speed_per_h)) : 0;
+              // For press, show "<mode> — $X.XXXX/sqft" (base + CMYK; white optional)
+              var rate = parseFloat(x.sqft_rate||0) + parseFloat(x.ink_cmyk||0);
               // Strip the press name from item name to keep just the mode
               var modeLabel = x.name.indexOf(x.cc_name + ' — ') === 0 ? x.name.substring(x.cc_name.length + 3) : x.name;
               label = modeLabel + ' · $' + rate.toFixed(4) + '/sqft';
@@ -776,10 +784,26 @@ window.applyRowMaterial = function(tabIdx, itemIdx, value) {
     var setupMin = parseFloat(cc.setup_min) || 0;
     var minCharge = parseFloat(cc.min_charge) || 0;
     var isPress = cc.cc_kind === 'press';
+    if (isPress) {
+      // New press model: flat Setup + ($/sqft base + CMYK + optional White).
+      item.kind = 'press';
+      item.cost_center_item_id = cc.id;
+      item.material_id = null;
+      item.preset_id = null;
+      item.name = cc.name;
+      item.setup = parseFloat(cc.setup_min) || 0;
+      item.sqft_rate = parseFloat(cc.sqft_rate) || 0;
+      item.ink_cmyk = parseFloat(cc.ink_cmyk) || 0;
+      item.ink_white = parseFloat(cc.ink_white) || 0;
+      if (item.white === undefined) item.white = false;
+      delete item.method; delete item.rate; delete item.qty; // shed generic fields
+      renderCompEditor();
+      return;
+    }
     item.cost_center_item_id = cc.id;
     item.material_id = null;
     item.preset_id = null;
-    item.name = isPress ? cc.name : ((cc.code ? cc.code + ' — ' : '') + cc.name);
+    item.name = (cc.code ? cc.code + ' — ' : '') + cc.name;
     // Decide method/rate/qty based on kind and which fields are populated
     if (isPress && speedPerH > 0 && rate > 0) {
       // Press: rate per sqft = $/hr ÷ sqft/hr; qty = printed sqft
@@ -856,7 +880,8 @@ window.applyRowMaterial = function(tabIdx, itemIdx, value) {
 
 function renderProcessTab(c, idx) {
   var tab = c.processTabs[idx];
-  var tabTotal = calcTabTotal(tab);
+  var sqft = calcLayoutCost(c.layout).sqft || 0; // job area drives press pricing
+  var tabTotal = calcTabTotal(tab, sqft);
   var lib = getTabLibrary(tab.name);
   var hasLib = lib && (
     (lib.cost_center_kind && cachedCostCenterItems && cachedCostCenterItems.some(function(x){ return x.cc_kind === lib.cost_center_kind; })) ||
@@ -871,6 +896,22 @@ function renderProcessTab(c, idx) {
     var hdrCls = hasLib ? 'proc-header proc-header-mat' : 'proc-header';
     rowsHTML = '<div class="' + hdrCls + '">' + headerCols + '</div>';
     tab.items.forEach(function(item, i) {
+      if (item.kind === 'press') {
+        var pTotal = calcItemTotal(item, sqft);
+        var perSqft = parseFloat(item.sqft_rate||0) + parseFloat(item.ink_cmyk||0) + (item.white ? parseFloat(item.ink_white||0) : 0);
+        var pf = function(label, key, val, w, dec){ return '<div><div class="lbl">' + label + '</div><input type="number" step="' + (dec===2?'0.01':'0.0001') + '" value="' + (parseFloat(val||0)).toFixed(dec) + '" onchange="updatePressField(' + idx + ',' + i + ',\'' + key + '\',this.value)" style="width:' + w + 'px;text-align:right"></div>'; };
+        rowsHTML += '<div style="grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px;padding:9px 10px;border:1px solid #e8e6e2;border-radius:8px;margin-bottom:6px;background:#fafafa">' +
+          '<div style="flex:1;min-width:130px"><div class="lbl">Press process</div><input value="' + escHtml(item.name||'') + '" onchange="updatePressField(' + idx + ',' + i + ',\'name\',this.value)" style="width:100%"></div>' +
+          pf('Setup $', 'setup', item.setup, 70, 2) +
+          pf('Sq Ft $', 'sqft_rate', item.sqft_rate, 74, 4) +
+          pf('Ink CMYK', 'ink_cmyk', item.ink_cmyk, 74, 4) +
+          pf('Ink White', 'ink_white', item.ink_white, 74, 4) +
+          '<label style="display:flex;align-items:center;gap:5px;font-size:12px;padding-bottom:6px;white-space:nowrap"><input type="checkbox" ' + (item.white?'checked':'') + ' onchange="updatePressField(' + idx + ',' + i + ',\'white\',this.checked)"> White ink</label>' +
+          '<div style="text-align:right;min-width:76px"><div class="lbl">Total</div><div class="row-total" style="font-weight:600">$' + pTotal.toFixed(2) + '</div><div style="font-size:10px;color:#aaa">' + (sqft>0 ? ('$'+perSqft.toFixed(4)+'/sqft × '+Math.round(sqft)) : 'set layout sq ft') + '</div></div>' +
+          '<button class="del-btn" onclick="deleteItem(' + idx + ',' + i + ')">×</button>' +
+        '</div>';
+        return;
+      }
       var matCell = hasLib
         ? '<select onchange="applyRowMaterial(' + idx + ',' + i + ',this.value)">' + buildRowMaterialOptions(lib, item) + '</select>'
         : '';
@@ -885,7 +926,7 @@ function renderProcessTab(c, idx) {
         '</select>' +
         '<input type="number" value="' + (item.rate||0) + '" min="0" step="0.01" oninput="updateItem(' + idx + ',' + i + ',\'rate\',this.value)" style="text-align:right">' +
         '<input type="number" value="' + (item.qty||1) + '" min="1" oninput="updateItem(' + idx + ',' + i + ',\'qty\',this.value)" style="text-align:right">' +
-        '<div class="row-total">$' + calcItemTotal(item).toFixed(2) + '</div>' +
+        '<div class="row-total">$' + calcItemTotal(item, sqft).toFixed(2) + '</div>' +
         '<button class="del-btn" onclick="deleteItem(' + idx + ',' + i + ')">×</button>' +
       '</div>';
     });
@@ -964,6 +1005,17 @@ window.updateItem = function(tabIdx, itemIdx, field, val) {
     if (totalEl) totalEl.textContent = '$' + total.toFixed(2);
   }
   document.getElementById('compEditorTotal').textContent = '$' + calcComponentTotal(components[currentCompIdx]).toFixed(2);
+};
+
+// Press-line fields (setup/sqft/inks/white). Full re-render so totals recompute
+// against the component's sq ft.
+window.updatePressField = function(tabIdx, itemIdx, field, val) {
+  var it = components[currentCompIdx].processTabs[tabIdx].items[itemIdx];
+  if (field === 'name') it.name = val;
+  else if (field === 'white') it.white = (val === true || val === 'true' || val === 'on');
+  else it[field] = parseFloat(val) || 0;
+  renderCompEditor();
+  if (typeof calc === 'function') calc();
 };
 
 function injectButton() {

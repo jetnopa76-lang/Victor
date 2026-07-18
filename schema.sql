@@ -266,10 +266,18 @@ CREATE TABLE IF NOT EXISTS cost_center_items (
   dm_rate         NUMERIC(12,4) NOT NULL DEFAULT 0,  -- direct material hourly rate
   unit_cost       NUMERIC(12,4) NOT NULL DEFAULT 0,
   min_charge      NUMERIC(12,4) NOT NULL DEFAULT 0,
+  -- Press cost model: setup_min holds a flat setup $; the rest are $/sq ft
+  sqft_rate       NUMERIC(12,4) NOT NULL DEFAULT 0,  -- press run cost per sq ft
+  ink_cmyk        NUMERIC(12,4) NOT NULL DEFAULT 0,  -- CMYK ink cost per sq ft
+  ink_white       NUMERIC(12,4) NOT NULL DEFAULT 0,  -- white ink cost per sq ft
   active          BOOLEAN NOT NULL DEFAULT true,
   sort_order      INTEGER NOT NULL DEFAULT 0,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+-- For databases created before the press ink/sqft model existed:
+ALTER TABLE cost_center_items ADD COLUMN IF NOT EXISTS sqft_rate NUMERIC(12,4) NOT NULL DEFAULT 0;
+ALTER TABLE cost_center_items ADD COLUMN IF NOT EXISTS ink_cmyk  NUMERIC(12,4) NOT NULL DEFAULT 0;
+ALTER TABLE cost_center_items ADD COLUMN IF NOT EXISTS ink_white NUMERIC(12,4) NOT NULL DEFAULT 0;
 
 -- ============================================================
 -- Users (PIN-based login)
