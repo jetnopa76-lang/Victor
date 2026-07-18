@@ -966,27 +966,28 @@ function renderKanban(){
     var cardsHtml=cards.map(function(o){
       var due=o.due_date?new Date(o.due_date):null;
       var overdue=due&&due<t;
-      return '<div style="background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-md);padding:10px 12px;cursor:grab;user-select:none;margin-bottom:8px" id="kcard-'+o.id+'" draggable="true" ondragstart="onCardDragStart(event,'+o.id+')" ondragend="onCardDragEnd(event)">'+
-        '<div style="font-size:10px;font-weight:500;color:#888;font-family:monospace;margin-bottom:3px">'+o.job_number+'</div>'+
-        '<div style="font-size:13px;font-weight:500;color:var(--color-text-primary);margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+o.job_name+'</div>'+
-        '<div style="font-size:11px;color:var(--color-text-secondary);margin-bottom:6px">'+(o.company||o.customer_name||'')+'</div>'+
-        '<div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center">'+
+      return '<div class="kcard" id="kcard-'+o.id+'" style="border-left-color:'+stage.color+'" draggable="true" ondragstart="onCardDragStart(event,'+o.id+')" ondragend="onCardDragEnd(event)">'+
+        '<div class="kcard-num">'+o.job_number+'</div>'+
+        '<div class="kcard-name">'+o.job_name+'</div>'+
+        ((o.company||o.customer_name)?'<div class="kcard-cust">'+(o.company||o.customer_name)+'</div>':'')+
+        '<div class="kcard-meta">'+
           '<span class="badge b-'+o.payment_status+'">'+PAY_LABELS[o.payment_status]+'</span>'+
-          (due?'<span style="font-size:11px;color:'+(overdue?'#a32d2d':'#888')+'">'+due.toLocaleDateString()+'</span>':'')+
-          '<span style="margin-left:auto;font-size:12px;font-weight:500;color:var(--color-text-primary)">$'+parseFloat(o.total||0).toFixed(2)+'</span>'+
+          (due?'<span class="kdue'+(overdue?' overdue':'')+'">'+(overdue?'⚠ ':'')+due.toLocaleDateString()+'</span>':'')+
+          '<span class="kcard-amt">$'+parseFloat(o.total||0).toFixed(2)+'</span>'+
         '</div>'+
-        '<div style="margin-top:8px;border-top:0.5px solid var(--color-border-tertiary);padding-top:6px">'+
-          '<button class="btn btn-sm" style="font-size:11px;padding:3px 8px" onclick=\'openOrderModal('+JSON.stringify(o)+')\'>Open</button>'+
-          '<button class="btn btn-sm" style="font-size:11px;padding:3px 8px;margin-left:4px" onclick="printJobTicket('+o.id+')">🖨</button>'+
+        '<div class="kcard-actions">'+
+          '<button class="kbtn" onclick=\'openOrderModal('+JSON.stringify(o)+')\'>Open</button>'+
+          '<button class="kbtn kbtn-icon" title="Print job ticket" onclick="printJobTicket('+o.id+')">🖨</button>'+
         '</div>'+
       '</div>';
-    }).join('');
-    return '<div style="background:var(--color-background-secondary);border-radius:var(--border-radius-lg);min-width:240px;width:240px;flex-shrink:0" id="kcol-'+stage.id+'" ondragover="onColDragOver(event)" ondrop="onColDrop(event,'+stage.id+')" ondragleave="onColDragLeave(event)">'+
-      '<div style="padding:10px 12px;border-bottom:1px solid var(--color-border-tertiary);display:flex;align-items:center;justify-content:space-between;border-top:3px solid '+stage.color+'">'+
-        '<span style="font-size:12px;font-weight:500;color:var(--color-text-primary)">'+stage.name+'</span>'+
-        '<span style="font-size:11px;color:var(--color-text-tertiary);background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:20px;padding:1px 8px">'+cards.length+'</span>'+
+    }).join('')||'<div style="text-align:center;color:#bbb;font-size:11px;padding:16px 0">Drop orders here</div>';
+    return '<div class="kcol" id="kcol-'+stage.id+'" ondragover="onColDragOver(event)" ondrop="onColDrop(event,'+stage.id+')" ondragleave="onColDragLeave(event)">'+
+      '<div class="kcol-head" style="border-top:3px solid '+stage.color+'">'+
+        '<span class="kcol-dot" style="background:'+stage.color+'"></span>'+
+        '<span class="kcol-name">'+stage.name+'</span>'+
+        '<span class="kcol-count">'+cards.length+'</span>'+
       '</div>'+
-      '<div style="padding:10px;min-height:200px" id="kbody-'+stage.id+'">'+cardsHtml+'</div>'+
+      '<div class="kcol-body" id="kbody-'+stage.id+'">'+cardsHtml+'</div>'+
     '</div>';
   }).join('');
 }
