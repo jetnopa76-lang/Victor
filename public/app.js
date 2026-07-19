@@ -493,6 +493,7 @@ function calc(){
     '<tr class="grand-row"><td>Customer price</td><td>$'+total.toFixed(2)+'</td></tr>'+
     '</table>'+notesHtml;
   document.getElementById('estActionBar').style.display='flex';
+  var hn=document.getElementById('estHeaderNum'); if(hn) hn.textContent=currentEstimateNumber||'';
 }
 
 function calcPPCost(p,qty,sides,sqft){
