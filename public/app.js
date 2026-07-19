@@ -156,13 +156,19 @@ async function loadCustomers(){
         '<td class="muted">'+c.estimate_count+'</td>'+
         '<td><span class="badge b-'+(c.status||'active')+'">'+c.status+'</span></td>'+
         '<td><div class="actions">'+
-          '<button class="btn btn-sm" onclick="openCustomerModal('+JSON.stringify(c)+')">Edit</button>'+
+          '<button class="btn btn-sm" onclick="editCustomer('+c.id+')">Edit</button>'+
           '<button class="btn btn-sm btn-blue" onclick="loadCustomerIntoEstimator('+c.id+')">Estimate</button>'+
         '</div></td>'+
       '</tr>';
     }).join('');
   }catch(e){toast('Error loading customers: '+e.message);}
 }
+
+// Look the record up by id from the loaded list, then open its modal. Passing
+// the id (not JSON.stringify) avoids quotes in the data breaking the onclick.
+function editCustomer(id){ var c=customers.find(function(x){return String(x.id)===String(id);}); if(c)openCustomerModal(c); }
+function editRep(id){ var r=reps.find(function(x){return String(x.id)===String(id);}); if(r)openRepModal(r); }
+function editTier(id){ var t=tiers.find(function(x){return String(x.id)===String(id);}); if(t)openTierModal(t); }
 
 function openCustomerModal(c){
   document.getElementById('custModalTitle').textContent=c?'Edit customer':'Add customer';
@@ -240,7 +246,7 @@ async function loadReps(){
         '<td class="muted">$'+parseFloat(r.total_revenue||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})+'</td>'+
         '<td class="muted">$'+parseFloat(r.total_commission||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})+'</td>'+
         '<td><span class="badge '+(r.active?'b-active':'b-inactive')+'">'+(r.active?'Active':'Inactive')+'</span></td>'+
-        '<td><button class="btn btn-sm" onclick="openRepModal('+JSON.stringify(r)+')">Edit</button></td>'+
+        '<td><button class="btn btn-sm" onclick="editRep('+r.id+')">Edit</button></td>'+
       '</tr>';
     }).join('');
   }catch(e){toast('Error loading reps: '+e.message);}
@@ -299,7 +305,7 @@ async function loadTiers(){
         '<td class="muted">'+t.discount_pct+'% off</td>'+
         '<td class="muted">'+(t.customer_count||0)+' customers</td>'+
         '<td class="muted" style="max-width:220px">'+(t.notes||'—')+'</td>'+
-        '<td><button class="btn btn-sm" onclick="openTierModal('+JSON.stringify(t)+')">Edit</button></td>'+
+        '<td><button class="btn btn-sm" onclick="editTier('+t.id+')">Edit</button></td>'+
       '</tr>';
     }).join('');
   }catch(e){toast('Error loading tiers: '+e.message);}
