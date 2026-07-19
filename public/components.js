@@ -135,7 +135,12 @@ window.applyMaterial = function(id) {
   l.material_category = m.category_name || l.material_category;
   if (m.width_in)  l.sw = parseFloat(m.width_in);
   if (m.length_in) l.sh = parseFloat(m.length_in);
-  if (m.pricing_method === 'per_sqft' && m.cost != null) l.csf = parseFloat(m.cost) || 0;
+  // Capture the material's pricing method so the substrate prices correctly:
+  // per sq ft (wide format), per sheet, or per M / per 1,000 (digital stock).
+  l.pricing_method = m.pricing_method || 'per_sqft';
+  l.mat_unit = m.unit || '';
+  l.mat_cost = m.cost != null ? (parseFloat(m.cost) || 0) : 0;
+  l.csf = (m.pricing_method === 'per_sqft' && m.cost != null) ? (parseFloat(m.cost) || 0) : 0;
   renderCompEditor();
 };
 
@@ -182,35 +187,56 @@ function isBoardStock(cat) {
   return false; // default: treat unknown wide-format media as roll goods
 }
 
-// Compute substrate layout + cost. Automatically tries both piece orientations
-// (0° and 90°) and keeps whichever nests more pieces / uses less material.
+// A fixed cut sheet (buy whole sheets: rigid boards AND digital/press sheets)
+// vs. a continuous roll (billed by length). Rolls are the wide-format exception.
+function isFixedSheet(cat, sh) {
+  cat = (cat || '').toLowerCase();
+  if (/roll|banner|vinyl|fabric|mesh|film|scrim|wallpaper/.test(cat)) return false; // roll goods
+  if (isBoardStock(cat)) return true;                                                // rigid board
+  return sh > 0 && sh <= 200;  // finite, modest length ⇒ a cut sheet (paper/digital/press)
+}
+
+// Compute substrate layout + cost. Prices by the material's method — per sq ft
+// (wide format), per sheet, or per M (per 1,000 sheets, e.g. digital stock).
+// Automatically tries both piece orientations and keeps the better nesting.
 function calcLayoutCost(layout) {
   var sides = Math.max(1, parseInt(layout.sides) || 1);
   var bw = layout.fw + layout.bleed*2, bh = layout.fh + layout.bleed*2; // bled piece
   var sw = layout.sw || 0, sh = layout.sh || 0;
   var grip = layout.grip || 0, gut = layout.gut || 0, qty = Math.max(1, layout.qty || 1);
   var csf = layout.csf || 0;
+  var pm = layout.pricing_method || 'per_sqft';
+  var matCost = parseFloat(layout.mat_cost != null ? layout.mat_cost : csf) || 0;
+  var unit = (layout.mat_unit || '').toLowerCase();
   var pieceSqftEach = (bw/12) * (bh/12);
 
-  if (isBoardStock(layout.material_category) && sw > 0 && sh > 0) {
-    // ── Rigid board: grid-nest onto a fixed sw×sh sheet, buy whole boards ──
-    function fitBoard(pw, ph) {
+  // Substrate $ from the material's pricing method. sheets = whole sheets/rolls used.
+  function substrateCost(sheets, sqft) {
+    if (pm === 'per_sheet') return sheets * matCost;
+    if (pm === 'per_unit')  return unit === 'm' ? sheets * (matCost/1000) : sheets * matCost;
+    return sqft * csf; // per_sqft (default / manual)
+  }
+
+  if (isFixedSheet(layout.material_category, sh) && sw > 0 && sh > 0) {
+    // ── Fixed sheet: grid-nest onto sw×sh, buy whole sheets ──
+    function fitSheet(pw, ph) {
       var a = Math.max(0, Math.floor((sw + gut) / (pw + gut)));            // across the width
       var d = Math.max(0, Math.floor((sh - grip + gut) / (ph + gut)));     // down the sheet
       return { across: a, down: d, per: a * d, pw: pw, ph: ph };
     }
-    var f0 = fitBoard(bw, bh), f90 = fitBoard(bh, bw);
+    var f0 = fitSheet(bw, bh), f90 = fitSheet(bh, bw);
     var best = f90.per > f0.per ? f90 : f0;                                // more pieces wins
     var perSheet = best.per;
     var fits = perSheet > 0;
-    var sheets = fits ? Math.ceil(qty / perSheet) : 1;                     // whole boards
+    var sheets = fits ? Math.ceil(qty / perSheet) : 1;                     // whole sheets
     var sheetSqft = (sw/12) * (sh/12);
-    var sqft = sheets * sheetSqft;                                         // pay for whole boards
+    var sqft = sheets * sheetSqft;
     var waste = Math.max(0, Math.min(99, (1 - (pieceSqftEach * qty) / (sheetSqft * sheets)) * 100));
     return {
-      mode: 'board', rotated: best.pw !== bw, fits: fits,
+      mode: 'sheet', isBoard: isBoardStock(layout.material_category),
+      rotated: best.pw !== bw, fits: fits,
       across: best.across, around: best.down, outs: perSheet, perSheet: perSheet,
-      sheets: sheets, sqft: sqft, cost: sqft * csf, waste: waste,
+      sheets: sheets, sqft: sqft, cost: substrateCost(sheets, sqft), waste: waste,
       lenUsed: sh, puw: best.pw, puh: best.ph, sides: sides
     };
   }
@@ -232,9 +258,9 @@ function calcLayoutCost(layout) {
   var pieceArea = rb.pw * rb.ph * qty;
   var waste = Math.max(0, Math.min(99, ((totalArea - pieceArea) / Math.max(totalArea, 1)) * 100));
   return {
-    mode: 'roll', rotated: rb.pw !== bw, fits: true,
+    mode: 'roll', isBoard: false, rotated: rb.pw !== bw, fits: true,
     across: rb.across, around: rb.rows, outs: rb.across * rb.rows, perSheet: rb.across * rb.rows,
-    sheets: rolls, sqft: sqft, cost: sqft * csf, waste: waste,
+    sheets: rolls, sqft: sqft, cost: substrateCost(rolls, sqft), waste: waste,
     lenUsed: rb.len, puw: rb.pw, puh: rb.ph, sides: sides
   };
 }
@@ -429,8 +455,9 @@ window.getComponentsItemized = function() {
     var lc = calcLayoutCost(c.layout);
     var lines = [];
     if (lc.cost > 0.001) {
-      var subDetail = lc.mode === 'board'
-        ? (lc.sheets + ' board' + (lc.sheets>1?'s':'') + ' · ' + Math.round(lc.sqft) + ' sq ft')
+      var sheetWord = lc.isBoard ? 'board' : 'sheet';
+      var subDetail = lc.mode === 'sheet'
+        ? (lc.sheets + ' ' + sheetWord + (lc.sheets>1?'s':'') + ' · ' + Math.round(lc.sqft) + ' sq ft')
         : (Math.round(lc.sqft) + ' sq ft' + (lc.sheets>1 ? ' · ' + lc.sheets + ' sheets' : ''));
       lines.push({ label: 'Substrate — ' + (c.layout.material_name || 'stock'), detail: subDetail, val: lc.cost });
     }
@@ -554,7 +581,14 @@ function renderLayoutTab(c) {
           <div><label class="lbl">Length (in)</label><input class="inp" type="number" value="${l.sh}" step="1" oninput="updateLayout('sh',this.value)"></div>
         </div>
         <div class="r2g">
-          <div><label class="lbl">Cost per sq ft ($)</label><input class="inp" type="number" value="${l.csf}" min="0" step="0.01" oninput="updateLayout('csf',this.value)"></div>
+          ${(function(){
+            var pm=l.pricing_method||'per_sqft', u=(l.mat_unit||'').toLowerCase();
+            if(pm==='per_unit'||pm==='per_sheet'){
+              var lbl=(pm==='per_unit'&&u==='m')?'Cost per M ($)':'Cost per sheet ($)';
+              return '<div><label class="lbl">'+lbl+'</label><input class="inp" type="number" value="'+(l.mat_cost||0)+'" min="0" step="0.01" oninput="updateLayout(\'mat_cost\',this.value)"></div>';
+            }
+            return '<div><label class="lbl">Cost per sq ft ($)</label><input class="inp" type="number" value="'+(l.csf||0)+'" min="0" step="0.01" oninput="updateLayout(\'csf\',this.value)"></div>';
+          })()}
           <div><label class="lbl">Sides</label><select class="inp" oninput="updateLayout('sides',this.value)"><option value="1"${l.sides==1?' selected':''}>1-sided</option><option value="2"${l.sides==2?' selected':''}>2-sided</option></select></div>
         </div>
       </div>
@@ -573,9 +607,9 @@ function renderLayoutTab(c) {
       <div><label class="lbl">Gutter (in)</label><input class="inp" type="number" value="${l.gut}" step="0.0625" oninput="updateLayout('gut',this.value)"></div>
     </div>
     <div class="stat-grid">
-      <div class="stat-box"><div class="sl">Layout${lc.rotated?' <span style="color:#378ADD">⟳ rotated</span>':''}</div><div class="sv">${lc.across}×${lc.around}</div><div class="ss">${lc.mode==='board'?lc.outs+' per board · '+l.qty+' pcs':lc.outs+' positions · '+l.qty+' pcs'}</div></div>
-      ${lc.mode==='board'
-        ? `<div class="stat-box"><div class="sl">Boards used</div><div class="sv">${lc.sheets} board${lc.sheets>1?'s':''}</div><div class="ss">${lc.fits?lc.waste.toFixed(1)+'% waste':'<span style="color:#c0392b">⚠ piece too big for sheet</span>'}</div></div>`
+      <div class="stat-box"><div class="sl">Layout${lc.rotated?' <span style="color:#378ADD">⟳ rotated</span>':''}</div><div class="sv">${lc.across}×${lc.around}</div><div class="ss">${lc.mode==='sheet'?lc.outs+' per '+(lc.isBoard?'board':'sheet')+' · '+l.qty+' pcs':lc.outs+' positions · '+l.qty+' pcs'}</div></div>
+      ${lc.mode==='sheet'
+        ? `<div class="stat-box"><div class="sl">${lc.isBoard?'Boards':'Sheets'} used</div><div class="sv">${lc.sheets} ${lc.isBoard?'board':'sheet'}${lc.sheets>1?'s':''}</div><div class="ss">${lc.fits?lc.waste.toFixed(1)+'% waste':'<span style="color:#c0392b">⚠ piece too big for sheet</span>'}</div></div>`
         : `<div class="stat-box"><div class="sl">Length used</div><div class="sv">${(lc.lenUsed/12).toFixed(1)} ft</div><div class="ss">${lc.lenUsed.toFixed(1)}" · ${lc.sheets > 1 ? lc.sheets+' sheets · ' : ''}${lc.waste.toFixed(1)}% waste</div></div>`}
       <div class="stat-box"><div class="sl">Substrate cost</div><div class="sv">$${lc.cost.toFixed(2)}</div><div class="ss">${lc.sqft.toFixed(1)} sq ft${lc.sides>1?' (×'+lc.sides+' sides)':''}</div></div>
     </div>
