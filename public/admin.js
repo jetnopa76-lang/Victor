@@ -28,6 +28,8 @@ function _injectAdmBtn(){
   btn.textContent='⚙ Admin';
   btn.style.cssText='background:none;border:1px solid #e0ded8;color:#1a1a18;border-radius:8px;padding:4px 10px;font-size:12px;cursor:pointer;font-weight:500;margin-left:8px';
   btn.onclick=function(){openAdmin();};
+  // Admin panel is restricted to admin-role users.
+  if(window.currentUser && window.currentUser.role!=='admin') btn.style.display='none';
   var st=nav.querySelector('.nav-status');
   if(st)nav.insertBefore(btn,st);else nav.appendChild(btn);
   // Remove old pricing library button
@@ -37,8 +39,9 @@ function _injectAdmBtn(){
 if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',_injectAdmBtn);}
 else{_injectAdmBtn();setTimeout(_injectAdmBtn,500);}
 
-// Open admin
+// Open admin (admin-role only)
 function openAdmin(){
+  if(window.currentUser && window.currentUser.role!=='admin'){ if(typeof toast==='function')toast('Admin access only'); return; }
   _admHome();
   document.getElementById('_adm').style.display='flex';
 }
@@ -74,16 +77,22 @@ async function _goS(s){
 function _bc(l){return '<div class="_bc"><button class="_back" onclick="_admHome()">← Back</button><span style="color:#aaa">/</span><span style="font-weight:500">'+l+'</span></div>';}
 
 // USERS
+var _eu=null; // id of user being edited
+function _roleOpts(sel){return ['admin','sales','production','accounting'].map(function(r){return '<option value="'+r+'"'+(sel===r?' selected':'')+'>'+r.charAt(0).toUpperCase()+r.slice(1)+'</option>';}).join('');}
 async function _rUsers(){
   document.getElementById('_admTitle').textContent='Users';
   var u=await _a('GET','/api/users');
   var rb={admin:'background:#1a1a18;color:#fff',sales:'background:#EAF3DE;color:#27500A',production:'background:#E6F1FB;color:#0C447C',accounting:'background:#FFF3DC;color:#7A4A00'};
-  var form=_nuf?'<div class="_form"><h4>New user</h4><div class="_fg"><div class="_ff"><label>Name</label><input id="_nu_n" type="text"></div><div class="_ff"><label>PIN</label><input id="_nu_p" type="password" maxlength="8"></div><div class="_ff" style="grid-column:span 2"><label>Role</label><select id="_nu_r"><option value="admin">Admin</option><option value="sales" selected>Sales</option><option value="production">Production</option><option value="accounting">Accounting</option></select></div></div><div class="_fa"><button class="_btn" onclick="_cUser()">Create</button><button class="_btnG" onclick="_nuf=false;_rUsers()">Cancel</button></div></div>':'';
-  document.getElementById('_admC').innerHTML='<div class="_sec">'+_bc('Users')+form+'<div class="_lc">'+u.map(function(x){return '<div class="_li"><div style="flex:1"><div class="_ln">'+_e(x.name)+'</div><div class="_ls"><span style="display:inline-block;font-size:11px;padding:1px 7px;border-radius:20px;font-weight:500;'+(rb[x.role]||rb.admin)+'">'+x.role+'</span></div></div><button class="_btnG" style="font-size:12px;margin-right:6px" onclick="_rPin('+x.id+',\''+_e(x.name)+'\')">Reset PIN</button>'+(x.id!==1?'<button class="_btnD" onclick="_dUser('+x.id+')">Del</button>':'')+'</div>';}).join('')+'</div>'+(!_nuf?'<div class="_addrow"><button class="_btn" onclick="_nuf=true;_rUsers()">+ Add user</button></div>':'')+'</div>';
+  var eu=_eu?u.find(function(x){return x.id===_eu;}):null;
+  var editForm=eu?'<div class="_form"><h4>Edit user</h4><div class="_fg"><div class="_ff"><label>Name</label><input id="_eu_n" type="text" value="'+_e(eu.name)+'"></div><div class="_ff"><label>Role</label><select id="_eu_r">'+_roleOpts(eu.role)+'</select></div><div class="_ff" style="grid-column:span 2"><label style="display:flex;align-items:center;gap:6px;font-size:13px"><input type="checkbox" id="_eu_a"'+(eu.active?' checked':'')+' style="width:auto"> Active</label></div></div><div class="_fa"><button class="_btn" onclick="_uUser()">Save</button><button class="_btnG" onclick="_rPin('+eu.id+',\''+_e(eu.name)+'\')">Reset PIN</button><button class="_btnG" onclick="_eu=null;_rUsers()">Cancel</button></div></div>':'';
+  var form=(_nuf&&!eu)?'<div class="_form"><h4>New user</h4><div class="_fg"><div class="_ff"><label>Name</label><input id="_nu_n" type="text"></div><div class="_ff"><label>PIN</label><input id="_nu_p" type="password" maxlength="8"></div><div class="_ff" style="grid-column:span 2"><label>Role</label><select id="_nu_r">'+_roleOpts('sales')+'</select></div></div><div class="_fa"><button class="_btn" onclick="_cUser()">Create</button><button class="_btnG" onclick="_nuf=false;_rUsers()">Cancel</button></div></div>':'';
+  document.getElementById('_admC').innerHTML='<div class="_sec">'+_bc('Users')+editForm+form+'<div class="_lc">'+u.map(function(x){return '<div class="_li"><div style="flex:1"><div class="_ln">'+_e(x.name)+(x.active===false?' <span style="font-size:10px;color:#a32d2d">(inactive)</span>':'')+'</div><div class="_ls"><span style="display:inline-block;font-size:11px;padding:1px 7px;border-radius:20px;font-weight:500;'+(rb[x.role]||rb.admin)+'">'+x.role+'</span></div></div><button class="_btnG" style="font-size:12px;margin-right:6px" onclick="_eUser('+x.id+')">Edit</button>'+(x.id!==1?'<button class="_btnD" onclick="_dUser('+x.id+')">Del</button>':'')+'</div>';}).join('')+'</div>'+(!_nuf&&!eu?'<div class="_addrow"><button class="_btn" onclick="_nuf=true;_rUsers()">+ Add user</button></div>':'')+'</div>';
 }
+function _eUser(id){_eu=id;_nuf=false;_rUsers();}
+async function _uUser(){var b={name:document.getElementById('_eu_n').value.trim(),role:document.getElementById('_eu_r').value,active:document.getElementById('_eu_a').checked};if(!b.name){alert('Name required');return;}await _a('PUT','/api/users/'+_eu,b);_eu=null;if(typeof toast==='function')toast('User updated');_rUsers();}
 async function _cUser(){var n=document.getElementById('_nu_n').value.trim(),p=document.getElementById('_nu_p').value,r=document.getElementById('_nu_r').value;if(!n||!p){alert('Name and PIN required');return;}await _a('POST','/api/users',{name:n,role:r,pin:p});_nuf=false;_rUsers();}
 function _rPin(id,name){var p=prompt('New PIN for '+name+':');if(!p)return;_a('PUT','/api/users/'+id,{pin:p}).then(function(){if(typeof toast==='function')toast('PIN updated!');});}
-async function _dUser(id){if(!confirm('Delete?'))return;await _a('DELETE','/api/users/'+id);_rUsers();}
+async function _dUser(id){if(!confirm('Delete?'))return;await _a('DELETE','/api/users/'+id);if(_eu===id)_eu=null;_rUsers();}
 
 // MATERIALS
 async function _rMats(){
@@ -187,9 +196,18 @@ async function _aTier(){var n=document.getElementById('_nt').value.trim();if(!n)
 async function _dTier(id){if(!confirm('Delete?'))return;await _a('DELETE','/api/tiers/'+id);_rTiers();}
 
 // REPS
-async function _rReps(){document.getElementById('_admTitle').textContent='Sales Reps';var r=await _a('GET','/api/reps');document.getElementById('_admC').innerHTML='<div class="_sec">'+_bc('Sales Reps')+'<div class="_lc">'+r.map(function(x){return '<div class="_li"><div style="flex:1"><div class="_ln">'+_e(x.name)+'</div><div class="_ls">'+(x.email||'')+(x.commission_pct?' · '+x.commission_pct+'% comm':'')+'</div></div><button class="_btnD" onclick="_dRep('+x.id+')">Delete</button></div>';}).join('')+'</div><div class="_addrow"><input id="_nr" type="text" placeholder="Name"><input id="_nre" type="email" placeholder="Email"><input id="_nrc" type="number" placeholder="%" min="0" style="max-width:70px"><button class="_btn" onclick="_aRep()">Add</button></div></div>';}
+var _er=null; // id of rep being edited
+async function _rReps(){
+  document.getElementById('_admTitle').textContent='Sales Reps';
+  var r=await _a('GET','/api/reps');
+  var er=_er?r.find(function(x){return x.id===_er;}):null;
+  var editForm=er?'<div class="_form"><h4>Edit rep</h4><div class="_fg"><div class="_ff"><label>Name</label><input id="_er_n" value="'+_e(er.name)+'"></div><div class="_ff"><label>Email</label><input id="_er_e" type="email" value="'+_e(er.email||'')+'"></div><div class="_ff"><label>Phone</label><input id="_er_p" value="'+_e(er.phone||'')+'"></div><div class="_ff"><label>Commission %</label><input id="_er_c" type="number" min="0" step="0.5" value="'+(er.commission_pct||0)+'"></div></div><div class="_fa"><button class="_btn" onclick="_uRep()">Save</button><button class="_btnG" onclick="_er=null;_rReps()">Cancel</button></div></div>':'';
+  document.getElementById('_admC').innerHTML='<div class="_sec">'+_bc('Sales Reps')+editForm+'<div class="_lc">'+r.map(function(x){return '<div class="_li"><div style="flex:1"><div class="_ln">'+_e(x.name)+'</div><div class="_ls">'+(x.email||'')+(x.commission_pct?' · '+x.commission_pct+'% comm':'')+'</div></div><button class="_btnG" style="font-size:12px;margin-right:6px" onclick="_eRep('+x.id+')">Edit</button><button class="_btnD" onclick="_dRep('+x.id+')">Delete</button></div>';}).join('')+'</div>'+(!er?'<div class="_addrow"><input id="_nr" type="text" placeholder="Name"><input id="_nre" type="email" placeholder="Email"><input id="_nrc" type="number" placeholder="%" min="0" style="max-width:70px"><button class="_btn" onclick="_aRep()">Add</button></div>':'')+'</div>';
+}
+function _eRep(id){_er=id;_rReps();}
+async function _uRep(){var b={name:document.getElementById('_er_n').value.trim(),email:document.getElementById('_er_e').value,phone:document.getElementById('_er_p').value,commission_pct:parseFloat(document.getElementById('_er_c').value)||0};if(!b.name){alert('Name required');return;}await _a('PUT','/api/reps/'+_er,b);_er=null;if(typeof toast==='function')toast('Rep updated');_rReps();}
 async function _aRep(){var n=document.getElementById('_nr').value.trim();if(!n)return;await _a('POST','/api/reps',{name:n,email:document.getElementById('_nre').value,commission_pct:parseFloat(document.getElementById('_nrc').value)||0});_rReps();}
-async function _dRep(id){if(!confirm('Delete?'))return;await _a('DELETE','/api/reps/'+id);_rReps();}
+async function _dRep(id){if(!confirm('Delete?'))return;await _a('DELETE','/api/reps/'+id);if(_er===id)_er=null;_rReps();}
 
 // BUSINESS
 function _rBiz(){document.getElementById('_admTitle').textContent='Business Settings';var s=JSON.parse(localStorage.getItem('victorSettings')||'{}');document.getElementById('_admC').innerHTML='<div class="_sec">'+_bc('Business Settings')+'<div class="_form"><h4>Company</h4><div class="_fg"><div class="_ff"><label>Name</label><input id="_bn" value="'+_e(s.companyName||'')+'" placeholder="Company name"></div><div class="_ff"><label>Phone</label><input id="_bp" value="'+_e(s.phone||'')+'" placeholder="(555) 555-5555"></div><div class="_ff"><label>Email</label><input id="_be" type="email" value="'+_e(s.email||'')+'" placeholder="info@co.com"></div><div class="_ff"><label>Address</label><input id="_ba" value="'+_e(s.address||'')+'" placeholder="123 Main St"></div></div></div><div class="_form"><h4>Defaults</h4><div class="_fg"><div class="_ff"><label>Tax rate (%)</label><input id="_bt" type="number" value="'+(s.defaultTax||0)+'" min="0" step="0.1"></div><div class="_ff"><label>Margin (%)</label><input id="_bm" type="number" value="'+(s.defaultMargin||40)+'" min="0" max="100"></div></div></div><button class="_btn" onclick="_sBiz()">Save settings</button></div>';}

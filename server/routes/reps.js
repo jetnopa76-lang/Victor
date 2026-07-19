@@ -57,7 +57,8 @@ router.put('/:id', async (req, res) => {
   try {
     const { rows } = await db.query(
       `UPDATE sales_reps SET
-         name=$1, email=$2, phone=$3, commission_pct=$4, active=$5, notes=$6
+         name=COALESCE($1,name), email=COALESCE($2,email), phone=COALESCE($3,phone),
+         commission_pct=COALESCE($4,commission_pct), active=COALESCE($5,active), notes=COALESCE($6,notes)
        WHERE id=$7 RETURNING *`,
       [name, email, phone, commission_pct, active, notes, req.params.id]
     );

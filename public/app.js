@@ -5,6 +5,47 @@ var currentEstimateId=null; // id of the estimate currently loaded in the editor
 var currentEstimateStatus='draft'; // preserve status when re-saving an existing estimate
 var currentEstimateNumber=''; // EST-number shown separately from the (editable) job name
 
+// ── AUTH (PIN login, remembered on this device) ──────────────────
+var currentUser=null;
+function pinAppend(d){var el=document.getElementById('loginPin');if(el)el.value=(el.value+d).slice(0,8);}
+function pinBack(){var el=document.getElementById('loginPin');if(el)el.value=el.value.slice(0,-1);}
+async function doLogin(){
+  var pinEl=document.getElementById('loginPin');
+  var pin=pinEl?pinEl.value:'';
+  if(!pin){return;}
+  try{
+    var u=await api('POST','/users/login',{pin:pin});
+    currentUser=u; window.currentUser=u;
+    localStorage.setItem('victorUser',JSON.stringify(u));
+    document.getElementById('loginErr').textContent='';
+    if(pinEl)pinEl.value='';
+    document.getElementById('loginOverlay').style.display='none';
+    applyUserToUI();
+    if(typeof toast==='function')toast('Welcome, '+u.name);
+  }catch(e){
+    document.getElementById('loginErr').textContent='Invalid PIN';
+    if(pinEl){pinEl.value='';pinEl.focus();}
+  }
+}
+function logout(){ localStorage.removeItem('victorUser'); currentUser=null; window.currentUser=null; location.reload(); }
+function applyUserToUI(){
+  var st=document.querySelector('.nav-status');
+  var chip=document.getElementById('navUser');
+  if(!chip && st && st.parentNode){ chip=document.createElement('div'); chip.id='navUser'; st.parentNode.insertBefore(chip, st); }
+  if(chip && currentUser){
+    chip.innerHTML='<span class="nu-name">'+jtEsc(currentUser.name)+'</span><span class="nu-role">'+jtEsc(currentUser.role)+'</span><button onclick="logout()">Log out</button>';
+  }
+  var ab=document.getElementById('_admNavBtn');
+  if(ab) ab.style.display=(currentUser&&currentUser.role==='admin')?'':'none';
+}
+function initAuth(){
+  var saved=localStorage.getItem('victorUser');
+  if(saved){ try{ currentUser=JSON.parse(saved); window.currentUser=currentUser; }catch(e){ currentUser=null; } }
+  var lo=document.getElementById('loginOverlay');
+  if(currentUser){ if(lo)lo.style.display='none'; applyUserToUI(); }
+  else if(lo){ lo.style.display='flex'; setTimeout(function(){var p=document.getElementById('loginPin');if(p)p.focus();},60); }
+}
+
 // ── HEALTH CHECK ──────────────────────────────────────────────
 async function checkHealth(){
   try{
@@ -1821,6 +1862,7 @@ function drawImpPreview(r){
 }
 
 // ── INIT ──────────────────────────────────────────────────────────
+initAuth();
 checkHealth();
 loadDropdowns();
 buildStockSelects();
