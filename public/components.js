@@ -431,7 +431,7 @@ window.getComponentsItemized = function() {
     if (lc.cost > 0.001) {
       var subDetail = lc.mode === 'board'
         ? (lc.sheets + ' board' + (lc.sheets>1?'s':'') + ' · ' + Math.round(lc.sqft) + ' sq ft')
-        : (Math.round(lc.sqft) + ' sq ft' + (lc.sheets>1 ? ' · ' + lc.sheets + ' rolls' : ''));
+        : (Math.round(lc.sqft) + ' sq ft' + (lc.sheets>1 ? ' · ' + lc.sheets + ' sheets' : ''));
       lines.push({ label: 'Substrate — ' + (c.layout.material_name || 'stock'), detail: subDetail, val: lc.cost });
     }
     c.processTabs.forEach(function(t){
@@ -548,10 +548,10 @@ function renderLayoutTab(c) {
     </div>
     <div class="r2g">
       <div>
-        <div class="sec-lbl" style="margin-top:0;padding-top:0;border-top:none">Roll / press sheet</div>
+        <div class="sec-lbl" style="margin-top:0;padding-top:0;border-top:none">Sheet size</div>
         <div class="r2g">
           <div><label class="lbl">Width (in)</label><input class="inp" type="number" value="${l.sw}" step="0.125" oninput="updateLayout('sw',this.value)"></div>
-          <div><label class="lbl">Roll length (in)</label><input class="inp" type="number" value="${l.sh}" step="1" oninput="updateLayout('sh',this.value)"></div>
+          <div><label class="lbl">Length (in)</label><input class="inp" type="number" value="${l.sh}" step="1" oninput="updateLayout('sh',this.value)"></div>
         </div>
         <div class="r2g">
           <div><label class="lbl">Cost per sq ft ($)</label><input class="inp" type="number" value="${l.csf}" min="0" step="0.01" oninput="updateLayout('csf',this.value)"></div>
@@ -576,7 +576,7 @@ function renderLayoutTab(c) {
       <div class="stat-box"><div class="sl">Layout${lc.rotated?' <span style="color:#378ADD">⟳ rotated</span>':''}</div><div class="sv">${lc.across}×${lc.around}</div><div class="ss">${lc.mode==='board'?lc.outs+' per board · '+l.qty+' pcs':lc.outs+' positions · '+l.qty+' pcs'}</div></div>
       ${lc.mode==='board'
         ? `<div class="stat-box"><div class="sl">Boards used</div><div class="sv">${lc.sheets} board${lc.sheets>1?'s':''}</div><div class="ss">${lc.fits?lc.waste.toFixed(1)+'% waste':'<span style="color:#c0392b">⚠ piece too big for sheet</span>'}</div></div>`
-        : `<div class="stat-box"><div class="sl">Roll length used</div><div class="sv">${(lc.lenUsed/12).toFixed(1)} ft</div><div class="ss">${lc.lenUsed.toFixed(1)}" · ${lc.sheets > 1 ? lc.sheets+' rolls · ' : ''}${lc.waste.toFixed(1)}% waste</div></div>`}
+        : `<div class="stat-box"><div class="sl">Length used</div><div class="sv">${(lc.lenUsed/12).toFixed(1)} ft</div><div class="ss">${lc.lenUsed.toFixed(1)}" · ${lc.sheets > 1 ? lc.sheets+' sheets · ' : ''}${lc.waste.toFixed(1)}% waste</div></div>`}
       <div class="stat-box"><div class="sl">Substrate cost</div><div class="sv">$${lc.cost.toFixed(2)}</div><div class="ss">${lc.sqft.toFixed(1)} sq ft${lc.sides>1?' (×'+lc.sides+' sides)':''}</div></div>
     </div>
     <canvas id="compCanvas" class="canvas-preview" height="200"></canvas>
@@ -593,21 +593,32 @@ function drawCompCanvas(l, lc) {
   var canvas = document.getElementById('compCanvas');
   if (!canvas) return;
   var cw = canvas.offsetWidth || 600;
-  var lenForDraw = lc.lenUsed || l.sh;
-  var ch = Math.min(Math.round(cw * Math.min(lenForDraw/l.sw, 6) / 4), 200);
-  canvas.width = cw; canvas.height = ch;
-  var ctx = canvas.getContext('2d');
-  var scale = Math.min((cw-16)/l.sw, (ch-16)/lenForDraw);
-  var ox = (cw-l.sw*scale)/2, oy = 8;
-  ctx.fillStyle='#f0efec'; ctx.fillRect(ox,oy,l.sw*scale,lenForDraw*scale);
-  ctx.strokeStyle='#ccc'; ctx.lineWidth=0.5; ctx.strokeRect(ox,oy,l.sw*scale,lenForDraw*scale);
-  ctx.fillStyle='#FAEEDA'; ctx.fillRect(ox,oy,l.sw*scale,l.grip*scale);
-  // Use the orientation the calculator actually chose (may be rotated 90°)
+  // Piece orientation the calculator chose (may be rotated 90°)
   var uw = lc.puw || (l.fw+l.bleed*2), uh = lc.puh || (l.fh+l.bleed*2);
   var iw = Math.max(0, uw-l.bleed*2), ih = Math.max(0, uh-l.bleed*2); // finished (inner) dims
-  var maxD=Math.min(lc.across*lc.around,200), drawn=0;
-  outer:for(var row=0;row<lc.around;row++){
-    for(var col=0;col<lc.across;col++){
+  // Roll goods → draw the length consumed (a strip). Cut sheets → draw ONE
+  // actual sheet (width x length) so a 12x18 shows as 12x18, not a long strip.
+  var rollish = (l.sh > 200) || /roll|banner|vinyl|fabric|mesh|film|scrim|wallpaper/.test((l.material_category||'').toLowerCase());
+  var drawLen, across, down;
+  if (rollish) {
+    drawLen = lc.lenUsed || l.sh || 1;
+    across = lc.across; down = lc.around;                 // full run down the roll
+  } else {
+    drawLen = l.sh || 1;
+    across = Math.max(1, Math.floor((l.sw + l.gut) / (uw + l.gut)));
+    down   = Math.max(1, Math.floor((drawLen - l.grip + l.gut) / (uh + l.gut)));  // one sheet
+  }
+  var ch = Math.min(Math.round(cw * Math.min(drawLen/l.sw, rollish?6:4) / 4), rollish?200:260);
+  canvas.width = cw; canvas.height = ch;
+  var ctx = canvas.getContext('2d');
+  var scale = Math.min((cw-16)/l.sw, (ch-16)/drawLen);
+  var ox = (cw-l.sw*scale)/2, oy = 8;
+  ctx.fillStyle='#f0efec'; ctx.fillRect(ox,oy,l.sw*scale,drawLen*scale);
+  ctx.strokeStyle='#ccc'; ctx.lineWidth=0.5; ctx.strokeRect(ox,oy,l.sw*scale,drawLen*scale);
+  if(l.grip>0){ ctx.fillStyle='#FAEEDA'; ctx.fillRect(ox,oy,l.sw*scale,l.grip*scale); }
+  var maxD=Math.min(across*down,400), drawn=0;
+  outer:for(var row=0;row<down;row++){
+    for(var col=0;col<across;col++){
       if(drawn>=maxD)break outer;
       var px=ox+col*(uw+l.gut)*scale, py=oy+l.grip*scale+row*(uh+l.gut)*scale;
       var isWaste = drawn >= (l.qty || 0);
