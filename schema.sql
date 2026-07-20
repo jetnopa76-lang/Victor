@@ -245,6 +245,24 @@ CREATE TABLE IF NOT EXISTS wide_format_materials (
 -- ============================================================
 -- Cost centers (labor / equipment rate cards) and their items
 -- ============================================================
+-- Departments = the "kind" groupings of cost centers (user-manageable).
+CREATE TABLE IF NOT EXISTS cost_center_departments (
+  id         SERIAL PRIMARY KEY,
+  kind       VARCHAR(40) NOT NULL UNIQUE,       -- key stored in cost_centers.kind
+  label      VARCHAR(100) NOT NULL,             -- display name
+  model      VARCHAR(30) NOT NULL DEFAULT 'speed', -- item field-set: prepress|press|digital|speed
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+INSERT INTO cost_center_departments (kind, label, model, sort_order) VALUES
+  ('prepress','Prepress','prepress',0),
+  ('press','Press','press',1),
+  ('digital','Digital Press','digital',2),
+  ('postpress','Postpress','speed',3),
+  ('bindery','Bindery','speed',4),
+  ('outside_services','Outside Services','speed',5)
+ON CONFLICT (kind) DO NOTHING;
+
 CREATE TABLE IF NOT EXISTS cost_centers (
   id         SERIAL PRIMARY KEY,
   kind       VARCHAR(40) NOT NULL,   -- e.g. prepress | press | postpress | digital

@@ -132,6 +132,12 @@ var _CC_KINDS=[
 ];
 async function _rCC(){
   document.getElementById('_admTitle').textContent='Cost Centers';
+  // Departments are DB-backed so they can be added/removed by the user.
+  var depts=await _a('GET','/api/cost-centers/departments');
+  if(Array.isArray(depts)&&depts.length){ _CC_KINDS=depts.map(function(d){return {k:d.kind,l:d.label,model:d.model||'speed',id:d.id};}); }
+  if(!_CC_KINDS.some(function(d){return d.k===_cck;})) _cck=_CC_KINDS[0]?_CC_KINDS[0].k:'prepress';
+  var deptModel=(_CC_KINDS.find(function(d){return d.k===_cck;})||{}).model||'speed';
+  var curDept=_CC_KINDS.find(function(d){return d.k===_cck;})||{};
   var allCenters=await _a('GET','/api/cost-centers');
   var centers=allCenters.filter(function(c){return c.kind===_cck;});
   // If current cost center isn't in the selected department, reset
@@ -141,7 +147,7 @@ async function _rCC(){
   var items=_cccid?await _a('GET','/api/cost-centers/items?cost_center_id='+_cccid):[];
 
   // Column 1: Departments
-  var depHTML='<span class="_mlh">Department</span>'+_CC_KINDS.map(function(d){var a=d.k===_cck;return '<div class="_mc'+(a?' _mca':'')+'" onclick="_sCCK(\''+d.k+'\')"><span>'+d.l+'</span></div>';}).join('');
+  var depHTML='<span class="_mlh">Department</span>'+_CC_KINDS.map(function(d){var a=d.k===_cck;return '<div class="_mc'+(a?' _mca':'')+'" onclick="_sCCK(\''+d.k+'\')"><span>'+_e(d.l)+'</span>'+(a&&d.id?'<button style="background:none;border:none;cursor:pointer;font-size:13px;color:#aaa;padding:0" onclick="event.stopPropagation();_dCCDept('+d.id+',\''+_e(d.l).replace(/'/g,"")+'\')">×</button>':'')+'</div>';}).join('')+'<button onclick="_aCCDept()" style="width:100%;margin-top:6px;padding:8px;border:2px dashed #ddd;border-radius:8px;background:none;font-size:12px;color:#378ADD;cursor:pointer">+ Add department</button>';
 
   // Column 2: Cost Centers
   var ccHTML='<span class="_mlh">Cost Center</span>';
@@ -161,12 +167,12 @@ async function _rCC(){
     procHTML+=hdr;
     var th='<span style="font-size:10px;color:#aaa;text-transform:uppercase">';
     if(items.length){
-      if(_cck==='prepress'){
+      if(deptModel==='prepress'){
         procHTML+='<div class="_lc" style="margin-bottom:8px"><div style="display:grid;grid-template-columns:60px 1fr 60px 60px 60px 60px 60px 24px;gap:5px;padding:6px 10px;border-bottom:1px solid #e8e6e2">'+th+'Code</span>'+th+'Name</span>'+th+'Mins/U</span>'+th+'AI $/h</span>'+th+'DM $/h</span>'+th+'Unit $</span>'+th+'Min $</span><span></span></div>'+items.map(function(x){return '<div class="_mr" style="grid-template-columns:60px 1fr 60px 60px 60px 60px 60px 24px"><input value="'+_e(x.code||'')+'" onchange="_uCCI('+x.id+',\'code\',this.value)"><input value="'+_e(x.name)+'" onchange="_uCCI('+x.id+',\'name\',this.value)"><input type="number" value="'+(parseFloat(x.mins_per_unit)||0).toFixed(2)+'" step="0.1" onchange="_uCCI('+x.id+',\'mins_per_unit\',this.value)"><input type="number" value="'+(parseFloat(x.ai_rate)||0).toFixed(2)+'" step="0.5" onchange="_uCCI('+x.id+',\'ai_rate\',this.value)"><input type="number" value="'+(parseFloat(x.dm_rate)||0).toFixed(2)+'" step="0.5" onchange="_uCCI('+x.id+',\'dm_rate\',this.value)"><input type="number" value="'+(parseFloat(x.unit_cost)||0).toFixed(2)+'" step="0.01" onchange="_uCCI('+x.id+',\'unit_cost\',this.value)"><input type="number" value="'+(parseFloat(x.min_charge)||0).toFixed(2)+'" step="0.5" onchange="_uCCI('+x.id+',\'min_charge\',this.value)"><button style="background:none;border:none;cursor:pointer;color:#ccc;font-size:15px;padding:0" onclick="_dCCI('+x.id+')">×</button></div>';}).join('')+'</div>';
-      }else if(_cck==='press'){
+      }else if(deptModel==='press'){
         // Press model: Setup Min (flat $) + Sq Ft / Ink CMYK / Ink White ($/sq ft)
         procHTML+='<div class="_lc" style="margin-bottom:8px"><div style="display:grid;grid-template-columns:60px 1fr 70px 70px 80px 80px 24px;gap:5px;padding:6px 10px;border-bottom:1px solid #e8e6e2">'+th+'Code</span>'+th+'Name</span>'+th+'Setup Min</span>'+th+'Sq Ft</span>'+th+'Ink CMYK</span>'+th+'Ink White</span><span></span></div>'+items.map(function(x){return '<div class="_mr" style="grid-template-columns:60px 1fr 70px 70px 80px 80px 24px"><input value="'+_e(x.code||'')+'" onchange="_uCCI('+x.id+',\'code\',this.value)"><input value="'+_e(x.name)+'" onchange="_uCCI('+x.id+',\'name\',this.value)"><input type="number" value="'+(parseFloat(x.setup_min)||0).toFixed(2)+'" step="0.01" onchange="_uCCI('+x.id+',\'setup_min\',this.value)"><input type="number" value="'+(parseFloat(x.sqft_rate)||0).toFixed(4)+'" step="0.0001" onchange="_uCCI('+x.id+',\'sqft_rate\',this.value)"><input type="number" value="'+(parseFloat(x.ink_cmyk)||0).toFixed(4)+'" step="0.0001" onchange="_uCCI('+x.id+',\'ink_cmyk\',this.value)"><input type="number" value="'+(parseFloat(x.ink_white)||0).toFixed(4)+'" step="0.0001" onchange="_uCCI('+x.id+',\'ink_white\',this.value)"><button style="background:none;border:none;cursor:pointer;color:#ccc;font-size:15px;padding:0" onclick="_dCCI('+x.id+')">×</button></div>';}).join('')+'</div>';
-      }else if(_cck==='digital'){
+      }else if(deptModel==='digital'){
         // Digital press model: Click $ (per sheet) + Setup Min (costed at AI $/h)
         procHTML+='<div class="_lc" style="margin-bottom:8px"><div style="display:grid;grid-template-columns:60px 1fr 80px 70px 70px 24px;gap:5px;padding:6px 10px;border-bottom:1px solid #e8e6e2">'+th+'Code</span>'+th+'Name</span>'+th+'Click $</span>'+th+'Setup Min</span>'+th+'AI $/h</span><span></span></div>'+items.map(function(x){return '<div class="_mr" style="grid-template-columns:60px 1fr 80px 70px 70px 24px"><input value="'+_e(x.code||'')+'" onchange="_uCCI('+x.id+',\'code\',this.value)"><input value="'+_e(x.name)+'" onchange="_uCCI('+x.id+',\'name\',this.value)"><input type="number" value="'+(parseFloat(x.unit_cost)||0).toFixed(4)+'" step="0.0001" onchange="_uCCI('+x.id+',\'unit_cost\',this.value)"><input type="number" value="'+(parseFloat(x.setup_min)||0).toFixed(0)+'" step="1" onchange="_uCCI('+x.id+',\'setup_min\',this.value)"><input type="number" value="'+(parseFloat(x.ai_rate)||0).toFixed(2)+'" step="0.5" onchange="_uCCI('+x.id+',\'ai_rate\',this.value)"><button style="background:none;border:none;cursor:pointer;color:#ccc;font-size:15px;padding:0" onclick="_dCCI('+x.id+')">×</button></div>';}).join('')+'</div>';
       }else{
@@ -182,6 +188,22 @@ async function _rCC(){
   document.getElementById('_admC').innerHTML='<div class="_sec">'+_bc('Cost Centers')+'<div class="_ml3"><div>'+depHTML+'</div><div>'+ccHTML+'</div><div>'+procHTML+'</div></div></div>';
 }
 function _sCCK(k){_cck=k;_cccid=null;_rCC();}
+async function _aCCDept(){
+  var name=prompt('New department name (e.g. Large Format):'); if(!name||!name.trim())return;
+  var mm={'1':'speed','2':'digital','3':'press','4':'prepress'};
+  var mk=prompt('Pricing model for this department:\n\n1 = Speed / Setup / AI $/h / DM $/h  (most presses & finishing)\n2 = Click $ / Setup  (digital press)\n3 = Sq Ft / Ink  (wide-format press)\n4 = Mins / Rates  (prepress)','1');
+  if(mk===null)return;
+  var model=mm[(mk||'1').trim()]||'speed';
+  var r=await _a('POST','/api/cost-centers/departments',{label:name.trim(),model:model});
+  if(r&&r.error){alert(r.error);return;}
+  _cck=r.kind;_cccid=null;if(typeof toast==='function')toast('Department added');_rCC();
+}
+async function _dCCDept(id,label){
+  if(!confirm('Delete department "'+label+'"? (It must have no cost centers.)'))return;
+  var r=await _a('DELETE','/api/cost-centers/departments/'+id);
+  if(r&&r.error){alert(r.error);return;}
+  _cck='prepress';_cccid=null;if(typeof toast==='function')toast('Department deleted');_rCC();
+}
 function _sCC(id){_cccid=id;_rCC();}
 async function _aCC(){var code=prompt('Cost center code (e.g. 5400):');if(!code)return;var name=prompt('Cost center name:');if(!name)return;var c=await _a('POST','/api/cost-centers',{kind:_cck,code:code,name:name});_cccid=c.id;_rCC();}
 async function _dCC(id){if(!confirm('Delete cost center and all its processes?'))return;await _a('DELETE','/api/cost-centers/'+id);_cccid=null;_rCC();}

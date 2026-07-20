@@ -2,6 +2,56 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 
+// ── DEPARTMENTS (the "kind" groupings of cost centers) ──────────────
+router.get('/departments', async (req, res) => {
+  try {
+    const { rows } = await db.query('SELECT * FROM cost_center_departments ORDER BY sort_order, id');
+    res.json(rows);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+router.post('/departments', async (req, res) => {
+  try {
+    let { kind, label, model = 'speed', sort_order } = req.body;
+    if (!label) return res.status(400).json({ error: 'label required' });
+    kind = String(kind || label).toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40);
+    if (!kind) return res.status(400).json({ error: 'invalid name' });
+    if (sort_order == null) {
+      const { rows: mx } = await db.query('SELECT COALESCE(MAX(sort_order),0)+1 AS n FROM cost_center_departments');
+      sort_order = mx[0].n;
+    }
+    const { rows } = await db.query(
+      'INSERT INTO cost_center_departments (kind, label, model, sort_order) VALUES ($1,$2,$3,$4) RETURNING *',
+      [kind, label, model, sort_order]);
+    res.status(201).json(rows[0]);
+  } catch (e) {
+    if (String(e.message).includes('unique') || e.code === '23505') return res.status(409).json({ error: 'A department with that name already exists' });
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.put('/departments/:id', async (req, res) => {
+  try {
+    const { label, model, sort_order } = req.body;
+    const { rows } = await db.query(
+      'UPDATE cost_center_departments SET label=COALESCE($1,label), model=COALESCE($2,model), sort_order=COALESCE($3,sort_order) WHERE id=$4 RETURNING *',
+      [label, model, sort_order, req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Not found' });
+    res.json(rows[0]);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+router.delete('/departments/:id', async (req, res) => {
+  try {
+    const { rows: d } = await db.query('SELECT kind FROM cost_center_departments WHERE id=$1', [req.params.id]);
+    if (!d.length) return res.status(404).json({ error: 'Not found' });
+    const { rows: cnt } = await db.query('SELECT COUNT(*)::int AS n FROM cost_centers WHERE kind=$1', [d[0].kind]);
+    if (cnt[0].n > 0) return res.status(400).json({ error: 'Remove its ' + cnt[0].n + ' cost center(s) first' });
+    await db.query('DELETE FROM cost_center_departments WHERE id=$1', [req.params.id]);
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // List all centers (optionally filter by kind), with item counts
 router.get('/', async (req, res) => {
   try {
