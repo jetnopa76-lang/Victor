@@ -1063,7 +1063,7 @@ function renderOrderList(){
 function renderKanban(){
   var board=document.getElementById('kanbanBoard');
   var t=new Date(); t.setHours(0,0,0,0);
-  if(!allStages.length){board.innerHTML='<div style="color:#aaa;font-size:13px;padding:2rem">No stages. Click Manage stages to add some.</div>';return;}
+  if(!allStages.length){board.innerHTML='<div style="color:#aaa;font-size:13px;padding:2rem">No stages yet. Add them in Admin → Production Stages.</div>';return;}
   board.innerHTML=allStages.map(function(stage){
     var cards=allOrders.filter(function(o){return Number(o.stage_id)===Number(stage.id);});
     var cardsHtml=cards.map(function(o){
