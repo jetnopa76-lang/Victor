@@ -47,15 +47,25 @@ function loadCostCenterItems() {
     .catch(function(){ costCenterItemsLoading = false; cachedCostCenterItems = []; });
 }
 
+var cachedDepartments = null, departmentsLoading = false;
+function loadDepartments() {
+  if (cachedDepartments || departmentsLoading) return;
+  departmentsLoading = true;
+  fetch('/api/cost-centers/departments').then(function(r){ return r.ok ? r.json() : []; })
+    .then(function(data){ cachedDepartments = Array.isArray(data) ? data : []; departmentsLoading = false; })
+    .catch(function(){ departmentsLoading = false; cachedDepartments = []; });
+}
+
 // Drop the cached materials + cost-center rates so the next component-editor
 // open refetches fresh Admin data. Called by Admin after any price edit so
 // changes there flow straight into estimates (no page reload needed).
 window.invalidateComponentCaches = function() {
   cachedCostCenterItems = null; costCenterItemsLoading = false;
   cachedMaterials = null; materialsLoading = false;
+  cachedDepartments = null; departmentsLoading = false;
   var ov = document.getElementById('compOverlay');
   if (ov && ov.style.display === 'flex' && currentCompIdx !== null) {
-    loadMaterials(); loadCostCenterItems(); // editor is open now → refresh live
+    loadMaterials(); loadCostCenterItems(); loadDepartments(); // editor is open → refresh live
   }
 };
 
@@ -144,18 +154,27 @@ window.applyMaterial = function(id) {
   renderCompEditor();
 };
 
+// Process tabs mirror the cost-center departments (so they always match).
+// Each tab carries the department `kind` so its picker + pricing line up.
+function defaultProcessTabs() {
+  if (cachedDepartments && cachedDepartments.length) {
+    return cachedDepartments.map(function(d){ return { id: nid(), name: d.label, kind: d.kind, items: [] }; });
+  }
+  return [
+    { id: nid(), name: 'PrePress',      kind: 'prepress', items: [] },
+    { id: nid(), name: 'Wide Format Press', kind: 'press', items: [] },
+    { id: nid(), name: 'Digital Press', kind: 'digital',  items: [] },
+    { id: nid(), name: 'PostPress',     kind: 'postpress',items: [] },
+    { id: nid(), name: 'Bindery',       kind: 'bindery',  items: [] }
+  ];
+}
+
 function newComponent(name) {
   return {
     id: nid(),
     name: name || 'New component',
     layout: { sw:54, sh:1200, fw:24, fh:36, bleed:0.125, grip:0.5, gut:0.125, rolls:1, qty:500, csf:0, sides:1, material_id:null, material_name:'' },
-    processTabs: [
-      { id: nid(), name: 'PrePress',     items: [] },
-      { id: nid(), name: 'Press',        items: [] },
-      { id: nid(), name: 'Digital Press',items: [] },
-      { id: nid(), name: 'PostPress',    items: [] },
-      { id: nid(), name: 'Bindery',      items: [] }
-    ]
+    processTabs: defaultProcessTabs()
   };
 }
 
@@ -382,6 +401,7 @@ function injectHTML() {
 
 window.openCompList = function() {
   injectStyles(); injectHTML();
+  loadDepartments(); loadCostCenterItems(); loadMaterials(); // preload so new tabs match departments
   renderCompList();
   document.getElementById('compListOverlay').style.display = 'flex';
 };
@@ -525,6 +545,7 @@ window.openEditComp = function(i) {
 
 function openCompEditor() {
   injectStyles(); injectHTML();
+  loadDepartments();
   loadMaterials();
   loadCostCenterItems();
   document.getElementById('compNameInput').value = components[currentCompIdx].name;
@@ -695,9 +716,22 @@ var TAB_LIBRARY_MAP = [
   { match: /^press$|^\s*press\s*$|press(?!.*post)/i, cost_center_kind: 'press', label: 'Press mode' }
 ];
 
-function getTabLibrary(tabName) {
+// Wide-format material categories some departments also pick from.
+var KIND_CATEGORIES = { postpress: ['Wide Format / Lamination'], bindery: ['Wide Format / Hardware'] };
+
+// Resolve a tab to its cost-center department. Prefer the kind stored on the
+// tab (new components mirror departments); fall back to name-matching for
+// components saved before departments were linked.
+function getTabLibrary(tab) {
+  var kind = (tab && typeof tab === 'object') ? tab.kind : null;
+  var name = (tab && typeof tab === 'object') ? tab.name : tab;
+  if (kind) {
+    var lib = { cost_center_kind: kind, label: name };
+    if (KIND_CATEGORIES[kind]) lib.categories = KIND_CATEGORIES[kind];
+    return lib;
+  }
   for (var i = 0; i < TAB_LIBRARY_MAP.length; i++) {
-    if (TAB_LIBRARY_MAP[i].match.test(tabName||'')) return TAB_LIBRARY_MAP[i];
+    if (TAB_LIBRARY_MAP[i].match.test(name||'')) return TAB_LIBRARY_MAP[i];
   }
   return null;
 }
@@ -994,7 +1028,7 @@ function renderProcessTab(c, idx) {
   var sqft = _lcp.sqft || 0;   // job area drives wide-format press pricing
   var sheets = _lcp.sheets || 0; // job sheets drive digital-press click pricing
   var tabTotal = calcTabTotal(tab, sqft, sheets);
-  var lib = getTabLibrary(tab.name);
+  var lib = getTabLibrary(tab);
   var hasLib = lib && (
     (lib.cost_center_kind && cachedCostCenterItems && cachedCostCenterItems.some(function(x){ return x.cc_kind === lib.cost_center_kind; })) ||
     (lib.categories && cachedMaterials && cachedMaterials.some(function(m){ return lib.categories.indexOf(m.category_name) !== -1; }))
