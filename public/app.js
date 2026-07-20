@@ -437,8 +437,8 @@ function calc(){
   var rateColor=parseFloat(document.getElementById('rateColor').value)||0.045;
   var rateBW=parseFloat(document.getElementById('rateBW').value)||0.012;
   var rmMap={letter:parseFloat(document.getElementById('rmLetter').value)||1,legal:parseFloat(document.getElementById('rmLegal').value)||1.2,tabloid:parseFloat(document.getElementById('rmTabloid').value)||1.8,a4:parseFloat(document.getElementById('rmA4').value)||1};
-  var setupD=parseFloat(document.getElementById('setupDigital').value)||8;
-  var setupW=parseFloat(document.getElementById('setupWide').value)||15;
+  var setupD=parseFloat(document.getElementById('setupDigital').value)||0;
+  var setupW=parseFloat(document.getElementById('setupWide').value)||0;
   // Tier discount
   var sel=document.getElementById('customerSel');
   var opt=sel.options[sel.selectedIndex];
@@ -459,19 +459,18 @@ function calc(){
       var paperCost=stock.costPerSheet*qty*rm;
       var inkCost=(cm==='color'?rateColor:rateBW)*rm*qty*sides;
       cost=paperCost+inkCost+setupD;
-      breakdown=[{label:'Paper & stock',detail:stock.name+' x '+qty,val:paperCost},{label:'Ink ('+(cm==='color'?'color':'B&W')+', '+sides+'s)',detail:'',val:inkCost},{label:'Setup',detail:'',val:setupD}];
+      breakdown=[{label:'Paper & stock',detail:stock.name+' x '+qty,val:paperCost},{label:'Ink ('+(cm==='color'?'color':'B&W')+', '+sides+'s)',detail:'',val:inkCost}];
+      if(setupD>0)breakdown.push({label:'Setup',detail:'',val:setupD}); // only if a setup fee is configured
     }
   } else {
     qty=parseInt(document.getElementById('wfQty').value)||0;
     calcImposition();
     sqft=impResult.totalSqft||0;
     // Substrate / Imposition are handled by Components (Layout tab).
-    // Only the wide-format setup fee is auto-included here (skipped for empty jobs).
-    if(qty>0){
+    // Optional wide-format setup fee (0 by default — only added if configured).
+    if(qty>0 && setupW>0){
       cost=setupW;
-      breakdown=[
-        {label:'Setup',detail:'',val:setupW}
-      ];
+      breakdown=[{label:'Setup',detail:'',val:setupW}];
     }
   }
   var ppBD=[];
