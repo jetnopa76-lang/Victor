@@ -125,6 +125,7 @@ var _cccid=null;     // current cost center id
 var _CC_KINDS=[
   {k:'prepress',         l:'Prepress'},
   {k:'press',            l:'Press'},
+  {k:'digital',          l:'Digital Press'},
   {k:'postpress',        l:'Postpress'},
   {k:'bindery',          l:'Bindery'},
   {k:'outside_services', l:'Outside Services'}
