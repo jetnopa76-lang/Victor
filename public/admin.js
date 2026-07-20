@@ -212,7 +212,46 @@ async function _uCCI(id,f,v){var b={};b[f]=(f==='code'||f==='name')?v:(parseFloa
 async function _dCCI(id){if(!confirm('Delete?'))return;await _a('DELETE','/api/cost-centers/items/'+id);_rCC();}
 
 // STAGES
-async function _rStages(){document.getElementById('_admTitle').textContent='Production Stages';var s=await _a('GET','/api/orders/stages');document.getElementById('_admC').innerHTML='<div class="_sec">'+_bc('Production Stages')+'<div class="_lc">'+s.map(function(x){return '<div class="_li"><div class="_ln">'+_e(x.name)+'</div><button class="_btnD" onclick="_dStage('+x.id+')">Delete</button></div>';}).join('')+'</div><div class="_addrow"><input id="_ns" type="text" placeholder="Stage name"><button class="_btn" onclick="_aStage()">Add</button></div></div>';}
+var _stages=[]; var _dragStage=null;
+async function _rStages(){
+  document.getElementById('_admTitle').textContent='Production Stages';
+  _stages=await _a('GET','/api/orders/stages');
+  _renderStages();
+}
+function _renderStages(){
+  var rows=_stages.map(function(x,i){
+    var up=i===0?' disabled style="opacity:.3"':'', dn=i===_stages.length-1?' disabled style="opacity:.3"':'';
+    return '<div class="_li" draggable="true" ondragstart="_stDrag(event,'+i+')" ondragover="event.preventDefault()" ondrop="_stDrop(event,'+i+')" ondragend="_dragStage=null" style="cursor:grab">'+
+      '<span style="color:#c9c6c0;font-size:15px;margin-right:8px;cursor:grab" title="Drag to reorder">⠿</span>'+
+      '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:'+(x.color||'#888')+';margin-right:9px;flex-shrink:0"></span>'+
+      '<div class="_ln">'+_e(x.name)+'</div>'+
+      '<button class="_btnG" style="font-size:13px;padding:2px 8px;margin-right:4px" onclick="_stMove('+i+',-1)"'+up+'>▲</button>'+
+      '<button class="_btnG" style="font-size:13px;padding:2px 8px;margin-right:6px" onclick="_stMove('+i+',1)"'+dn+'>▼</button>'+
+      '<button class="_btnD" onclick="_dStage('+x.id+')">Delete</button></div>';
+  }).join('');
+  document.getElementById('_admC').innerHTML='<div class="_sec">'+_bc('Production Stages')+
+    '<div style="font-size:12px;color:#888;margin-bottom:10px">Drag the ⠿ handle (or use ▲▼) to set the order — this is the order of the columns on the Orders board.</div>'+
+    '<div class="_lc">'+rows+'</div>'+
+    '<div class="_addrow"><input id="_ns" type="text" placeholder="Stage name"><button class="_btn" onclick="_aStage()">Add</button></div></div>';
+}
+function _stDrag(e,i){_dragStage=i;e.dataTransfer.effectAllowed='move';}
+function _stDrop(e,i){
+  e.preventDefault();
+  if(_dragStage===null||_dragStage===i)return;
+  var moved=_stages.splice(_dragStage,1)[0];
+  _stages.splice(i,0,moved);
+  _dragStage=null;
+  _renderStages(); _persistStageOrder();
+}
+function _stMove(i,dir){
+  var j=i+dir; if(j<0||j>=_stages.length)return;
+  var t=_stages[i]; _stages[i]=_stages[j]; _stages[j]=t;
+  _renderStages(); _persistStageOrder();
+}
+async function _persistStageOrder(){
+  for(var i=0;i<_stages.length;i++){ _stages[i].position=i; await _a('PUT','/api/orders/stages/'+_stages[i].id,{position:i}); }
+  if(typeof toast==='function')toast('Stage order saved');
+}
 async function _aStage(){var n=document.getElementById('_ns').value.trim();if(!n)return;await _a('POST','/api/orders/stages',{name:n});_rStages();}
 async function _dStage(id){if(!confirm('Delete?'))return;await _a('DELETE','/api/orders/stages/'+id);_rStages();}
 
