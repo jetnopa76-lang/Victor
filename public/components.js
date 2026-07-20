@@ -150,10 +150,11 @@ function newComponent(name) {
     name: name || 'New component',
     layout: { sw:54, sh:1200, fw:24, fh:36, bleed:0.125, grip:0.5, gut:0.125, rolls:1, qty:500, csf:0, sides:1, material_id:null, material_name:'' },
     processTabs: [
-      { id: nid(), name: 'PrePress',  items: [] },
-      { id: nid(), name: 'Press',     items: [] },
-      { id: nid(), name: 'PostPress', items: [] },
-      { id: nid(), name: 'Bindery',   items: [] }
+      { id: nid(), name: 'PrePress',     items: [] },
+      { id: nid(), name: 'Press',        items: [] },
+      { id: nid(), name: 'Digital Press',items: [] },
+      { id: nid(), name: 'PostPress',    items: [] },
+      { id: nid(), name: 'Bindery',      items: [] }
     ]
   };
 }
@@ -164,18 +165,24 @@ function newProcessItem() {
 
 // Press line: flat Setup + ($/sqft base + CMYK + optional White) × job sq ft.
 // Other lines: rate × qty. `sqft` is the component's printed area.
-function calcItemTotal(item, sqft) {
+function calcItemTotal(item, sqft, sheets) {
   if (item && item.kind === 'press') {
     var area = parseFloat(sqft || 0);
     var perSqft = (parseFloat(item.sqft_rate||0)) + (parseFloat(item.ink_cmyk||0)) +
                   (item.white ? parseFloat(item.ink_white||0) : 0);
     return parseFloat(item.setup||0) + perSqft * area;
   }
+  if (item && item.kind === 'digital') {
+    // Click $ per sheet + setup (minutes × AI $/hr).
+    var run = parseFloat(item.click||0) * parseFloat(sheets||0);
+    var setup = (parseFloat(item.setup_min||0)/60) * parseFloat(item.ai_rate||0);
+    return run + setup;
+  }
   return parseFloat(item.rate||0) * parseFloat(item.qty||1);
 }
 
-function calcTabTotal(tab, sqft) {
-  return tab.items.reduce(function(s,i){ return s + calcItemTotal(i, sqft); }, 0);
+function calcTabTotal(tab, sqft, sheets) {
+  return tab.items.reduce(function(s,i){ return s + calcItemTotal(i, sqft, sheets); }, 0);
 }
 
 // Is this a rigid board / cut-sheet stock (fixed sheet, bought whole) vs. a
@@ -267,7 +274,7 @@ function calcLayoutCost(layout) {
 
 function calcComponentTotal(comp) {
   var lc = calcLayoutCost(comp.layout);
-  var proc = comp.processTabs.reduce(function(s,t){ return s + calcTabTotal(t, lc.sqft); }, 0);
+  var proc = comp.processTabs.reduce(function(s,t){ return s + calcTabTotal(t, lc.sqft, lc.sheets); }, 0);
   return lc.cost + proc;
 }
 
@@ -463,7 +470,7 @@ window.getComponentsItemized = function() {
     }
     c.processTabs.forEach(function(t){
       t.items.forEach(function(it){
-        var v = calcItemTotal(it, lc.sqft);
+        var v = calcItemTotal(it, lc.sqft, lc.sheets);
         if (Math.abs(v) < 0.001) return;
         var label = (it.name && it.name.trim()) ? it.name : t.name;
         var detail = t.name;
@@ -472,6 +479,10 @@ window.getComponentsItemized = function() {
           detail = t.name + ' · $' + per.toFixed(4) + '/sqft × ' + Math.round(lc.sqft) +
                    (parseFloat(it.setup||0) > 0 ? ' + $' + parseFloat(it.setup).toFixed(2) + ' setup' : '') +
                    (it.white ? ' · +white ink' : '');
+        } else if (it.kind === 'digital') {
+          var setupC = (parseFloat(it.setup_min||0)/60) * parseFloat(it.ai_rate||0);
+          detail = t.name + ' · $' + parseFloat(it.click||0).toFixed(4) + '/click × ' + lc.sheets + ' sheets' +
+                   (setupC > 0.005 ? ' + $' + setupC.toFixed(2) + ' setup' : '');
         } else if (it.method === 'per_sqft') {
           detail = t.name + ' · $' + parseFloat(it.rate||0).toFixed(4) + '/sqft × ' + (it.qty||0);
         } else if (it.method === 'per_unit') {
@@ -678,6 +689,7 @@ window.addProcessTab = function() {
 
 var TAB_LIBRARY_MAP = [
   { match: /pre\s*press|prepress/i, cost_center_kind: 'prepress', label: 'Prepress' },
+  { match: /digital/i, cost_center_kind: 'digital', label: 'Digital Press' },
   { match: /post\s*press|lamination/i, cost_center_kind: 'postpress', categories: ['Wide Format / Lamination'], label: 'Postpress / Lamination' },
   { match: /bindery|hardware|install|finishing/i, categories: ['Wide Format / Hardware'], label: 'Hardware' },
   { match: /^press$|^\s*press\s*$|press(?!.*post)/i, cost_center_kind: 'press', label: 'Press mode' }
@@ -745,6 +757,8 @@ function buildProcessDropdownOptions(ccId, kind) {
       var rate = parseFloat(x.sqft_rate||0) + parseFloat(x.ink_cmyk||0); // base + CMYK $/sqft (white optional)
       var modeLabel = x.name.indexOf(x.cc_name + ' — ') === 0 ? x.name.substring(x.cc_name.length + 3) : x.name;
       label = modeLabel + ' · $' + rate.toFixed(4) + '/sqft';
+    } else if (kind === 'digital') {
+      label = x.name + ' · $' + (parseFloat(x.unit_cost)||0).toFixed(4) + '/click';
     } else {
       label = (x.code ? x.code + ' — ' : '') + x.name;
     }
@@ -797,6 +811,8 @@ function buildRowMaterialOptions(lib, item) {
               // Strip the press name from item name to keep just the mode
               var modeLabel = x.name.indexOf(x.cc_name + ' — ') === 0 ? x.name.substring(x.cc_name.length + 3) : x.name;
               label = modeLabel + ' · $' + rate.toFixed(4) + '/sqft';
+            } else if (lib.cost_center_kind === 'digital') {
+              label = (x.name || '') + ' · $' + (parseFloat(x.unit_cost)||0).toFixed(4) + '/click';
             } else {
               label = (x.code ? x.code + ' — ' : '') + (x.name || '');
             }
@@ -880,6 +896,20 @@ window.applyRowMaterial = function(tabIdx, itemIdx, value) {
       renderCompEditor();
       return;
     }
+    if (cc.cc_kind === 'digital') {
+      // Digital press: Click $ per sheet + setup (minutes × AI $/hr).
+      item.kind = 'digital';
+      item.cost_center_item_id = cc.id;
+      item.material_id = null;
+      item.preset_id = null;
+      item.name = cc.name;
+      item.click = parseFloat(cc.unit_cost) || 0;
+      item.setup_min = parseFloat(cc.setup_min) || 0;
+      item.ai_rate = parseFloat(cc.ai_rate) || 0;
+      delete item.method; delete item.rate; delete item.qty;
+      renderCompEditor();
+      return;
+    }
     item.cost_center_item_id = cc.id;
     item.material_id = null;
     item.preset_id = null;
@@ -960,8 +990,10 @@ window.applyRowMaterial = function(tabIdx, itemIdx, value) {
 
 function renderProcessTab(c, idx) {
   var tab = c.processTabs[idx];
-  var sqft = calcLayoutCost(c.layout).sqft || 0; // job area drives press pricing
-  var tabTotal = calcTabTotal(tab, sqft);
+  var _lcp = calcLayoutCost(c.layout);
+  var sqft = _lcp.sqft || 0;   // job area drives wide-format press pricing
+  var sheets = _lcp.sheets || 0; // job sheets drive digital-press click pricing
+  var tabTotal = calcTabTotal(tab, sqft, sheets);
   var lib = getTabLibrary(tab.name);
   var hasLib = lib && (
     (lib.cost_center_kind && cachedCostCenterItems && cachedCostCenterItems.some(function(x){ return x.cc_kind === lib.cost_center_kind; })) ||
@@ -976,8 +1008,22 @@ function renderProcessTab(c, idx) {
     var hdrCls = hasLib ? 'proc-header proc-header-mat' : 'proc-header';
     rowsHTML = '<div class="' + hdrCls + '">' + headerCols + '</div>';
     tab.items.forEach(function(item, i) {
+      if (item.kind === 'digital') {
+        var dTotal = calcItemTotal(item, sqft, sheets);
+        var setupC = (parseFloat(item.setup_min||0)/60) * parseFloat(item.ai_rate||0);
+        var df = function(label, key, val, w, dec){ return '<div><div class="lbl">' + label + '</div><input type="number" step="' + (dec===0?'1':'0.0001') + '" value="' + (parseFloat(val||0)).toFixed(dec) + '" onchange="updatePressField(' + idx + ',' + i + ',\'' + key + '\',this.value)" style="width:' + w + 'px;text-align:right"></div>'; };
+        rowsHTML += '<div style="grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px;padding:9px 10px;border:1px solid #e8e6e2;border-radius:8px;margin-bottom:6px;background:#fafafa">' +
+          '<div style="flex:1;min-width:130px"><div class="lbl">Digital press</div><input value="' + escHtml(item.name||'') + '" onchange="updatePressField(' + idx + ',' + i + ',\'name\',this.value)" style="width:100%"></div>' +
+          df('Click $', 'click', item.click, 78, 4) +
+          df('Setup min', 'setup_min', item.setup_min, 70, 0) +
+          df('AI $/hr', 'ai_rate', item.ai_rate, 70, 2) +
+          '<div style="text-align:right;min-width:82px"><div class="lbl">Total</div><div class="row-total" style="font-weight:600">$' + dTotal.toFixed(2) + '</div><div style="font-size:10px;color:#aaa">' + (sheets>0 ? ('$'+parseFloat(item.click||0).toFixed(4)+' × '+sheets+' sht'+(setupC>0.005?' + $'+setupC.toFixed(2)+' setup':'')) : 'set layout sheets') + '</div></div>' +
+          '<button class="del-btn" onclick="deleteItem(' + idx + ',' + i + ')">×</button>' +
+        '</div>';
+        return;
+      }
       if (item.kind === 'press') {
-        var pTotal = calcItemTotal(item, sqft);
+        var pTotal = calcItemTotal(item, sqft, sheets);
         var perSqft = parseFloat(item.sqft_rate||0) + parseFloat(item.ink_cmyk||0) + (item.white ? parseFloat(item.ink_white||0) : 0);
         var pf = function(label, key, val, w, dec){ return '<div><div class="lbl">' + label + '</div><input type="number" step="' + (dec===2?'0.01':'0.0001') + '" value="' + (parseFloat(val||0)).toFixed(dec) + '" onchange="updatePressField(' + idx + ',' + i + ',\'' + key + '\',this.value)" style="width:' + w + 'px;text-align:right"></div>'; };
         rowsHTML += '<div style="grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px;padding:9px 10px;border:1px solid #e8e6e2;border-radius:8px;margin-bottom:6px;background:#fafafa">' +
@@ -1006,7 +1052,7 @@ function renderProcessTab(c, idx) {
         '</select>' +
         '<input type="number" value="' + (item.rate||0) + '" min="0" step="0.01" oninput="updateItem(' + idx + ',' + i + ',\'rate\',this.value)" style="text-align:right">' +
         '<input type="number" value="' + (item.qty||1) + '" min="1" oninput="updateItem(' + idx + ',' + i + ',\'qty\',this.value)" style="text-align:right">' +
-        '<div class="row-total">$' + calcItemTotal(item, sqft).toFixed(2) + '</div>' +
+        '<div class="row-total">$' + calcItemTotal(item, sqft, sheets).toFixed(2) + '</div>' +
         '<button class="del-btn" onclick="deleteItem(' + idx + ',' + i + ')">×</button>' +
       '</div>';
     });
@@ -1017,6 +1063,7 @@ function renderProcessTab(c, idx) {
   if (lib && (lib.cost_center_kind || lib.categories)) {
     var pickedCcId = tab._pickedCcId || '';
     var deptLabel = lib.cost_center_kind === 'press' ? 'Press' :
+                    lib.cost_center_kind === 'digital' ? 'Digital Press' :
                     lib.cost_center_kind === 'prepress' ? 'Prepress' :
                     lib.cost_center_kind === 'postpress' ? 'Postpress' :
                     lib.cost_center_kind === 'bindery' ? 'Bindery' :
