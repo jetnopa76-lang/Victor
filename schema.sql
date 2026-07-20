@@ -256,7 +256,7 @@ CREATE TABLE IF NOT EXISTS cost_center_departments (
 );
 INSERT INTO cost_center_departments (kind, label, model, sort_order) VALUES
   ('prepress','Prepress','prepress',0),
-  ('press','Press','press',1),
+  ('press','Wide Format Press','press',1),
   ('digital','Digital Press','digital',2),
   ('postpress','Postpress','speed',3),
   ('bindery','Bindery','speed',4),
