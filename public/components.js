@@ -574,9 +574,9 @@ function renderCompEditor() {
   var c = components[currentCompIdx];
   var tabsHTML = '<button class="cw-tab' + (currentCompTab==='layout'?' active':'') + '" onclick="switchCompTab(\'layout\')">Layout</button>';
   c.processTabs.forEach(function(t, i) {
-    tabsHTML += '<button class="cw-tab' + (currentCompTab===('proc_'+i)?' active':'') + '" onclick="switchCompTab(\'proc_'+i+'\')">' + t.name + '</button>';
+    tabsHTML += '<button class="cw-tab' + (currentCompTab===('proc_'+i)?' active':'') + '" onclick="switchCompTab(\'proc_'+i+'\')">' + escHtml(t.name) + '</button>';
   });
-  tabsHTML += '<button class="cw-tab" style="color:#378ADD" onclick="addProcessTab()">+ Add tab</button>';
+  // Tabs mirror the cost-center departments — add/remove them in Admin, not here.
   document.getElementById('compMainTabs').innerHTML = tabsHTML;
   if (currentCompTab === 'layout') {
     renderLayoutTab(c);
@@ -1123,11 +1123,8 @@ function renderProcessTab(c, idx) {
   }
   document.getElementById('compBody').innerHTML =
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">' +
-      '<input value="' + tab.name + '" style="font-size:14px;font-weight:500;border:none;border-bottom:1px solid #ddd;padding:2px 4px;outline:none;width:150px" oninput="renameTab(' + idx + ',this.value)">' +
-      '<div style="display:flex;gap:8px;align-items:center">' +
-        '<span style="font-size:12px;color:#888">Tab total: <strong style="color:#1a1a18">$' + tabTotal.toFixed(2) + '</strong></span>' +
-        (idx >= 4 ? '<button onclick="deleteTab(' + idx + ')" style="font-size:11px;color:#a32d2d;border:1px solid #f0c8c8;border-radius:6px;background:#fff;padding:3px 8px;cursor:pointer">Delete tab</button>' : '') +
-      '</div>' +
+      '<div style="font-size:14px;font-weight:600;color:#1a1a18">' + escHtml(tab.name) + '</div>' +
+      '<span style="font-size:12px;color:#888">Tab total: <strong style="color:#1a1a18">$' + tabTotal.toFixed(2) + '</strong></span>' +
     '</div>' +
     ccPickerHTML +
     rowsHTML +
