@@ -71,14 +71,23 @@ router.get('/:id', async (req, res) => {
     );
     if (!rows.length) return res.status(404).json({ error: 'Not found' });
 
-    // Also fetch recent estimates
+    // Recent estimates (quotes)
     const { rows: estimates } = await db.query(
-      `SELECT id, job_name, job_type, status, sell_price, total, created_at
+      `SELECT id, estimate_number, job_name, job_type, status, sell_price, total, created_at
        FROM estimates WHERE customer_id=$1
-       ORDER BY created_at DESC LIMIT 20`,
+       ORDER BY created_at DESC LIMIT 50`,
       [req.params.id]
     );
-    res.json({ ...rows[0], recent_estimates: estimates });
+    // Recent orders
+    const { rows: orders } = await db.query(
+      `SELECT o.id, o.job_number, o.job_name, o.job_type, o.payment_status, o.total, o.created_at,
+              s.name AS stage_name, s.color AS stage_color
+       FROM orders o LEFT JOIN production_stages s ON s.id = o.stage_id
+       WHERE o.customer_id=$1
+       ORDER BY o.created_at DESC LIMIT 50`,
+      [req.params.id]
+    );
+    res.json({ ...rows[0], recent_estimates: estimates, recent_orders: orders });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

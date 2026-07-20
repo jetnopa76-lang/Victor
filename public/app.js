@@ -156,6 +156,7 @@ async function loadCustomers(){
         '<td class="muted">'+c.estimate_count+'</td>'+
         '<td><span class="badge b-'+(c.status||'active')+'">'+c.status+'</span></td>'+
         '<td><div class="actions">'+
+          '<button class="btn btn-sm" onclick="openCustomerHistory('+c.id+')">History</button>'+
           '<button class="btn btn-sm" onclick="editCustomer('+c.id+')">Edit</button>'+
           '<button class="btn btn-sm btn-blue" onclick="loadCustomerIntoEstimator('+c.id+')">Estimate</button>'+
         '</div></td>'+
@@ -167,6 +168,58 @@ async function loadCustomers(){
 // Look the record up by id from the loaded list, then open its modal. Passing
 // the id (not JSON.stringify) avoids quotes in the data breaking the onclick.
 function editCustomer(id){ var c=customers.find(function(x){return String(x.id)===String(id);}); if(c)openCustomerModal(c); }
+
+// Open an order by id (used from the customer history view).
+async function viewOrderById(id){
+  try{ var o=await api('GET','/orders/'+id); if(typeof allStages==='undefined'||!allStages||!allStages.length){ try{allStages=await api('GET','/orders/stages');}catch(_){}} showPage('orders',document.querySelectorAll('.nav-tab')[2]); setTimeout(function(){openOrderModal(o);},300); }
+  catch(e){ toast('Error opening order'); }
+}
+
+// Customer detail: everything they've been quoted and ordered.
+async function openCustomerHistory(id){
+  var el=document.getElementById('custHistBody');
+  el.innerHTML='<div style="padding:24px;color:#aaa;text-align:center">Loading history…</div>';
+  openModal('customerHistoryModal');
+  try{
+    var c=await api('GET','/customers/'+id);
+    var name=(c.company||((c.first_name||'')+' '+(c.last_name||''))).trim()||'Customer';
+    var sub=[c.company?((c.first_name||'')+' '+(c.last_name||'')).trim():'', c.email, c.phone].filter(Boolean).join(' · ');
+    var ests=c.recent_estimates||[], ords=c.recent_orders||[];
+    function m$(n){return '$'+parseFloat(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
+    function dt(s){return s?new Date(s).toLocaleDateString():'';}
+    var quoted=ests.reduce(function(s,e){return s+parseFloat(e.total||0);},0);
+    var ordered=ords.reduce(function(s,o){return s+parseFloat(o.total||0);},0);
+    var estRows=ests.length?ests.map(function(e){
+      return '<tr onclick="closeModal(\'customerHistoryModal\');openEstimateById('+e.id+')" style="cursor:pointer">'+
+        '<td style="font-family:monospace;font-size:11px;color:#888">'+jtEsc(e.estimate_number||'')+'</td>'+
+        '<td>'+jtEsc(stripEstNum(e.job_name||''))+'</td>'+
+        '<td><span class="badge b-'+e.status+'">'+jtEsc((typeof STATUS_LABEL_EST!=='undefined'&&STATUS_LABEL_EST[e.status])||e.status)+'</span></td>'+
+        '<td class="muted" style="font-size:12px">'+dt(e.created_at)+'</td>'+
+        '<td style="text-align:right;font-weight:500">'+m$(e.total)+'</td></tr>';
+    }).join(''):'<tr><td colspan="5" style="color:#aaa;padding:10px">No estimates yet.</td></tr>';
+    var ordRows=ords.length?ords.map(function(o){
+      var sc=o.stage_color||'#888';
+      return '<tr onclick="viewOrderById('+o.id+')" style="cursor:pointer">'+
+        '<td style="font-family:monospace;font-size:11px;color:#888">'+jtEsc(o.job_number||'')+'</td>'+
+        '<td>'+jtEsc(o.job_name||'')+'</td>'+
+        '<td>'+(o.stage_name?'<span style="font-size:10px;padding:2px 8px;border-radius:20px;background:'+sc+'22;color:'+sc+'">'+jtEsc(o.stage_name)+'</span>':'—')+'</td>'+
+        '<td><span class="badge b-'+o.payment_status+'">'+jtEsc((typeof PAY_LABELS!=='undefined'&&PAY_LABELS[o.payment_status])||o.payment_status)+'</span></td>'+
+        '<td style="text-align:right;font-weight:500">'+m$(o.total)+'</td></tr>';
+    }).join(''):'<tr><td colspan="5" style="color:#aaa;padding:10px">No orders yet.</td></tr>';
+    el.innerHTML=
+      '<style>#custHistBody td{padding:7px 10px;border-bottom:1px solid #f2f0ec;vertical-align:middle}#custHistBody tr:hover td{background:#f7f6f3}</style>'+
+      '<h3 style="margin:0 0 2px">'+jtEsc(name)+'</h3>'+
+      (sub?'<div style="font-size:12px;color:#888;margin-bottom:14px">'+jtEsc(sub)+'</div>':'<div style="margin-bottom:10px"></div>')+
+      '<div style="display:flex;gap:10px;margin-bottom:18px">'+
+        '<div style="flex:1;background:#f9f8f6;border-radius:10px;padding:10px 12px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#aaa">Estimates</div><div style="font-size:18px;font-weight:600">'+ests.length+'</div><div style="font-size:12px;color:#888">'+m$(quoted)+' quoted</div></div>'+
+        '<div style="flex:1;background:#f9f8f6;border-radius:10px;padding:10px 12px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#aaa">Orders</div><div style="font-size:18px;font-weight:600">'+ords.length+'</div><div style="font-size:12px;color:#888">'+m$(ordered)+' ordered</div></div>'+
+      '</div>'+
+      '<div style="font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Estimates</div>'+
+      '<div style="max-height:200px;overflow:auto;border:1px solid #eee;border-radius:8px;margin-bottom:16px"><table style="width:100%;border-collapse:collapse;font-size:13px"><tbody>'+estRows+'</tbody></table></div>'+
+      '<div style="font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Orders</div>'+
+      '<div style="max-height:200px;overflow:auto;border:1px solid #eee;border-radius:8px"><table style="width:100%;border-collapse:collapse;font-size:13px"><tbody>'+ordRows+'</tbody></table></div>';
+  }catch(e){ el.innerHTML='<div style="color:#c0392b;padding:24px">Error loading history: '+jtEsc(e.message)+'</div>'; }
+}
 function editRep(id){ var r=reps.find(function(x){return String(x.id)===String(id);}); if(r)openRepModal(r); }
 function editTier(id){ var t=tiers.find(function(x){return String(x.id)===String(id);}); if(t)openTierModal(t); }
 
