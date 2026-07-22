@@ -646,21 +646,37 @@ function renderLayoutTab(c) {
       <div><label class="lbl">Gripper (in)</label><input class="inp" type="number" value="${l.grip}" step="0.0625" oninput="updateLayout('grip',this.value)"></div>
       <div><label class="lbl">Gutter (in)</label><input class="inp" type="number" value="${l.gut}" step="0.0625" oninput="updateLayout('gut',this.value)"></div>
     </div>
-    <div class="stat-grid">
-      <div class="stat-box"><div class="sl">Layout${lc.rotated?' <span style="color:#378ADD">⟳ rotated</span>':''}</div><div class="sv">${lc.across}×${lc.around}</div><div class="ss">${lc.mode==='sheet'?lc.outs+' per '+(lc.isBoard?'board':'sheet')+' · '+l.qty+' pcs':lc.outs+' positions · '+l.qty+' pcs'}</div></div>
-      ${lc.mode==='sheet'
-        ? `<div class="stat-box"><div class="sl">${lc.isBoard?'Boards':'Sheets'} used</div><div class="sv">${lc.sheets} ${lc.isBoard?'board':'sheet'}${lc.sheets>1?'s':''}</div><div class="ss">${lc.fits?lc.waste.toFixed(1)+'% waste':'<span style="color:#c0392b">⚠ piece too big for sheet</span>'}</div></div>`
-        : `<div class="stat-box"><div class="sl">Length used</div><div class="sv">${(lc.lenUsed/12).toFixed(1)} ft</div><div class="ss">${lc.lenUsed.toFixed(1)}" · ${lc.sheets > 1 ? lc.sheets+' sheets · ' : ''}${lc.waste.toFixed(1)}% waste</div></div>`}
-      <div class="stat-box"><div class="sl">Substrate cost</div><div class="sv">$${lc.cost.toFixed(2)}</div><div class="ss">${lc.sqft.toFixed(1)} sq ft${lc.sides>1?' (×'+lc.sides+' sides)':''}</div></div>
-    </div>
+    <div class="stat-grid" id="compStatGrid">${layoutStatsHtml(l, lc)}</div>
     <canvas id="compCanvas" class="canvas-preview" height="200"></canvas>
   `;
   setTimeout(function(){ drawCompCanvas(l, lc); }, 50);
 }
 
+// Just the three stat boxes — reused so live edits don't rebuild the inputs.
+function layoutStatsHtml(l, lc) {
+  var box1 = '<div class="stat-box"><div class="sl">Layout'+(lc.rotated?' <span style="color:#378ADD">⟳ rotated</span>':'')+'</div><div class="sv">'+lc.across+'×'+lc.around+'</div><div class="ss">'+(lc.mode==='sheet'?lc.outs+' per '+(lc.isBoard?'board':'sheet')+' · '+l.qty+' pcs':lc.outs+' positions · '+l.qty+' pcs')+'</div></div>';
+  var box2 = lc.mode==='sheet'
+    ? '<div class="stat-box"><div class="sl">'+(lc.isBoard?'Boards':'Sheets')+' used</div><div class="sv">'+lc.sheets+' '+(lc.isBoard?'board':'sheet')+(lc.sheets>1?'s':'')+'</div><div class="ss">'+(lc.fits?lc.waste.toFixed(1)+'% waste':'<span style="color:#c0392b">⚠ piece too big for sheet</span>')+'</div></div>'
+    : '<div class="stat-box"><div class="sl">Length used</div><div class="sv">'+(lc.lenUsed/12).toFixed(1)+' ft</div><div class="ss">'+lc.lenUsed.toFixed(1)+'" · '+(lc.sheets>1?lc.sheets+' sheets · ':'')+lc.waste.toFixed(1)+'% waste</div></div>';
+  var box3 = '<div class="stat-box"><div class="sl">Substrate cost</div><div class="sv">$'+lc.cost.toFixed(2)+'</div><div class="ss">'+lc.sqft.toFixed(1)+' sq ft'+(lc.sides>1?' (×'+lc.sides+' sides)':'')+'</div></div>';
+  return box1 + box2 + box3;
+}
+
+// Update only the derived stats + preview (not the inputs), so the field being
+// typed in keeps focus and decimals like 0.125 aren't clobbered mid-entry.
+function refreshLayoutStats() {
+  var c = components[currentCompIdx]; if (!c) return;
+  var lc = calcLayoutCost(c.layout);
+  var sg = document.getElementById('compStatGrid');
+  if (sg) sg.innerHTML = layoutStatsHtml(c.layout, lc);
+  drawCompCanvas(c.layout, lc);
+  var tot = document.getElementById('compEditorTotal');
+  if (tot) tot.textContent = '$' + calcComponentTotal(c).toFixed(2);
+}
+
 window.updateLayout = function(field, val) {
   components[currentCompIdx].layout[field] = parseFloat(val) || 0;
-  renderCompEditor();
+  refreshLayoutStats();
 };
 
 function drawCompCanvas(l, lc) {
