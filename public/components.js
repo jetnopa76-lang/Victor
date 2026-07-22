@@ -324,14 +324,14 @@ function injectStyles() {
   style.id = 'comp-styles';
   style.textContent = `
     #compOverlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.45);z-index:9998;display:none;align-items:flex-start;justify-content:center;padding:20px 0;overflow-y:auto}
-    #compWindow{background:#fff;border-radius:16px;width:95%;max-width:760px;margin:auto;overflow:hidden;position:relative;top:10px}
+    #compWindow{background:#fff;border-radius:16px;width:96%;max-width:1080px;margin:auto;overflow:hidden;position:relative;top:10px}
     #compListOverlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.45);z-index:9997;display:none;align-items:flex-start;justify-content:center;padding:20px 0;overflow-y:auto}
     #compListWindow{background:#fff;border-radius:16px;width:95%;max-width:600px;margin:auto;overflow:hidden;position:relative;top:10px}
     .cw-header{background:#1a1a18;color:#fff;padding:12px 16px;display:flex;align-items:center;justify-content:space-between}
     .cw-title{font-size:14px;font-weight:500}
     .cw-close{background:none;border:none;color:#aaa;font-size:20px;cursor:pointer;line-height:1}
     .cw-tabs{display:flex;border-bottom:1px solid #e0ded8;background:#f9f8f6;overflow-x:auto}
-    .cw-tab{padding:10px 16px;font-size:13px;cursor:pointer;border-bottom:2px solid transparent;color:#888;background:none;border-top:none;border-left:none;border-right:none;white-space:nowrap}
+    .cw-tab{padding:9px 11px;font-size:12.5px;cursor:pointer;border-bottom:2px solid transparent;color:#888;background:none;border-top:none;border-left:none;border-right:none;white-space:nowrap;flex:0 0 auto}
     .cw-tab.active{color:#1a1a18;border-bottom-color:#1a1a18;font-weight:500;background:#fff}
     .cw-body{padding:16px;max-height:65vh;overflow-y:auto}
     .cw-footer{padding:12px 16px;border-top:1px solid #f0efec;display:flex;gap:8px;justify-content:space-between;align-items:center;background:#fff}
@@ -747,6 +747,9 @@ var TAB_LIBRARY_MAP = [
   { match: /pre\s*press|prepress/i, cost_center_kind: 'prepress', label: 'Prepress' },
   { match: /digital/i, cost_center_kind: 'digital', label: 'Digital Press' },
   { match: /lamination/i, cost_center_kind: 'lamination', categories: ['Wide Format / Lamination'], label: 'Lamination' },
+  { match: /cutting|trimming|cutter/i, cost_center_kind: 'cutting', label: 'Cutting' },
+  { match: /installation/i, cost_center_kind: 'installation', label: 'Installation' },
+  { match: /fulfill?ment/i, cost_center_kind: 'fulfillment', label: 'Fulfillment' },
   { match: /post\s*press/i, cost_center_kind: 'postpress', label: 'Postpress' },
   { match: /bindery|hardware|install|finishing/i, categories: ['Wide Format / Hardware'], label: 'Hardware' },
   { match: /^press$|^\s*press\s*$|press(?!.*post)/i, cost_center_kind: 'press', label: 'Press mode' }
@@ -1168,6 +1171,9 @@ function renderProcessTab(c, idx) {
     var deptLabel = lib.cost_center_kind === 'press' ? 'Press' :
                     lib.cost_center_kind === 'digital' ? 'Digital Press' :
                     lib.cost_center_kind === 'lamination' ? 'Lamination' :
+                    lib.cost_center_kind === 'cutting' ? 'Cutting' :
+                    lib.cost_center_kind === 'installation' ? 'Installation' :
+                    lib.cost_center_kind === 'fulfillment' ? 'Fulfillment' :
                     lib.cost_center_kind === 'prepress' ? 'Prepress' :
                     lib.cost_center_kind === 'postpress' ? 'Postpress' :
                     lib.cost_center_kind === 'bindery' ? 'Bindery' :

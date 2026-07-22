@@ -163,7 +163,18 @@ async function _rCC(){
   if(!sel){
     procHTML+='<div style="color:#aaa;font-size:13px;padding:10px 4px">Select a cost center on the left.</div>';
   } else {
-    var hdr='<div style="margin-bottom:10px"><div style="font-size:15px;font-weight:600"><span style="font-family:monospace;color:#888;font-size:13px;margin-right:8px">'+_e(sel.code)+'</span>'+_e(sel.name)+'</div><div style="font-size:11px;color:#888;margin-top:2px">'+items.length+' process(es)</div></div>';
+    var _ll='font-size:10px;color:#aaa;text-transform:uppercase;letter-spacing:.03em;margin-bottom:2px';
+    var deptOpts=_CC_KINDS.map(function(d){return '<option value="'+_e(d.k)+'"'+(d.k===_cck?' selected':'')+'>'+_e(d.l)+'</option>';}).join('');
+    var hdr='<div style="margin-bottom:12px;padding:10px;background:#f9f8f6;border:1px solid #ececec;border-radius:8px">'
+      +'<div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:8px">'
+        +'<div><div style="'+_ll+'">Code</div><input value="'+_e(sel.code||'')+'" onchange="_uCC('+sel.id+',\'code\',this.value)" style="width:82px;font-family:monospace"></div>'
+        +'<div style="flex:1"><div style="'+_ll+'">Cost center name</div><input value="'+_e(sel.name)+'" onchange="_uCC('+sel.id+',\'name\',this.value)" style="width:100%"></div>'
+      +'</div>'
+      +'<div style="display:flex;gap:10px;align-items:flex-end">'
+        +'<div><div style="'+_ll+'">Department</div><select onchange="_uCC('+sel.id+',\'kind\',this.value)">'+deptOpts+'</select></div>'
+        +'<div style="font-size:11px;color:#888;padding-bottom:6px">'+items.length+' process(es)</div>'
+      +'</div>'
+    +'</div>';
     procHTML+=hdr;
     var th='<span style="font-size:10px;color:#aaa;text-transform:uppercase">';
     if(items.length){
@@ -212,6 +223,15 @@ async function _dCCDept(id,label){
 function _sCC(id){_cccid=id;_rCC();}
 async function _aCC(){var code=prompt('Cost center code (e.g. 5400):');if(!code)return;var name=prompt('Cost center name:');if(!name)return;var c=await _a('POST','/api/cost-centers',{kind:_cck,code:code,name:name});_cccid=c.id;_rCC();}
 async function _dCC(id){if(!confirm('Delete cost center and all its processes?'))return;await _a('DELETE','/api/cost-centers/'+id);_cccid=null;_rCC();}
+async function _uCC(id,f,v){
+  var b={}; b[f]=(f==='kind'||f==='code'||f==='name')?v:(parseFloat(v)||0);
+  var r=await _a('PUT','/api/cost-centers/'+id,b);
+  if(r&&r.error){alert(r.error);return;}
+  if(f==='kind'){_cck=v;} // follow the cost center into its new department
+  _cccid=id;
+  if(typeof toast==='function')toast('Cost center updated');
+  _rCC();
+}
 async function _aCCI(cid){await _a('POST','/api/cost-centers/items',{cost_center_id:cid,name:'New process'});_rCC();}
 async function _uCCI(id,f,v){var b={};b[f]=(f==='code'||f==='name')?v:(parseFloat(v)||0);await _a('PUT','/api/cost-centers/items/'+id,b);}
 async function _dCCI(id){if(!confirm('Delete?'))return;await _a('DELETE','/api/cost-centers/items/'+id);_rCC();}
