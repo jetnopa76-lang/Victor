@@ -189,7 +189,9 @@ function calcItemTotal(item, sqft, sheets) {
     var area = parseFloat(sqft || 0);
     var perSqft = (parseFloat(item.sqft_rate||0)) + (parseFloat(item.ink_cmyk||0)) +
                   (item.white ? parseFloat(item.ink_white||0) : 0);
-    return parseFloat(item.setup||0) + perSqft * area;
+    var pressTotal = parseFloat(item.setup||0) + perSqft * area;
+    var minC = parseFloat(item.min_charge||0);
+    return minC > 0 ? Math.max(pressTotal, minC) : pressTotal; // apply minimum-charge floor
   }
   if (item && item.kind === 'digital') {
     // Click $ per sheet + setup (minutes × AI $/hr).
@@ -949,6 +951,7 @@ window.applyRowMaterial = function(tabIdx, itemIdx, value) {
       item.sqft_rate = parseFloat(cc.sqft_rate) || 0;
       item.ink_cmyk = parseFloat(cc.ink_cmyk) || 0;
       item.ink_white = parseFloat(cc.ink_white) || 0;
+      item.min_charge = parseFloat(cc.min_charge) || 0;
       if (item.white === undefined) item.white = false;
       delete item.method; delete item.rate; delete item.qty; // shed generic fields
       renderCompEditor();
@@ -1090,8 +1093,9 @@ function renderProcessTab(c, idx) {
           pf('Sq Ft $', 'sqft_rate', item.sqft_rate, 74, 4) +
           pf('Ink CMYK', 'ink_cmyk', item.ink_cmyk, 74, 4) +
           pf('Ink White', 'ink_white', item.ink_white, 74, 4) +
+          pf('Min $', 'min_charge', item.min_charge, 60, 2) +
           '<label style="display:flex;align-items:center;gap:5px;font-size:12px;padding-bottom:6px;white-space:nowrap"><input type="checkbox" ' + (item.white?'checked':'') + ' onchange="updatePressField(' + idx + ',' + i + ',\'white\',this.checked)"> White ink</label>' +
-          '<div style="text-align:right;min-width:76px"><div class="lbl">Total</div><div class="row-total" style="font-weight:600">$' + pTotal.toFixed(2) + '</div><div style="font-size:10px;color:#aaa">' + (sqft>0 ? ('$'+perSqft.toFixed(4)+'/sqft × '+Math.round(sqft)) : 'set layout sq ft') + '</div></div>' +
+          '<div style="text-align:right;min-width:76px"><div class="lbl">Total</div><div class="row-total" style="font-weight:600">$' + pTotal.toFixed(2) + '</div><div style="font-size:10px;color:#aaa">' + (parseFloat(item.min_charge||0) > pTotal - 0.005 && parseFloat(item.min_charge||0) > 0 ? '$'+parseFloat(item.min_charge).toFixed(2)+' minimum' : (sqft>0 ? ('$'+perSqft.toFixed(4)+'/sqft × '+Math.round(sqft)) : 'set layout sq ft')) + '</div></div>' +
           '<button class="del-btn" onclick="deleteItem(' + idx + ',' + i + ')">×</button>' +
         '</div>';
         return;
