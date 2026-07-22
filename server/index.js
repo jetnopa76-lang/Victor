@@ -26,6 +26,7 @@ app.use('/api/materials', require('./routes/materials'));
 app.use('/api/wide-format-materials', require('./routes/wide-format-materials'));
 app.use('/api/cost-centers', require('./routes/cost-centers'));
 app.use('/api/users', require('./routes/users'));
+app.use('/api/vendors', require('./routes/vendors'));
 
 // Health check
 app.get('/api/health', async (req, res) => {

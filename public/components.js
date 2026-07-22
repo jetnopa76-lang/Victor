@@ -56,6 +56,20 @@ function loadDepartments() {
     .catch(function(){ departmentsLoading = false; cachedDepartments = []; });
 }
 
+var cachedVendors = null, vendorsLoading = false;
+function loadVendors() {
+  if (cachedVendors || vendorsLoading) return;
+  vendorsLoading = true;
+  fetch('/api/vendors').then(function(r){ return r.ok ? r.json() : []; })
+    .then(function(data){
+      cachedVendors = Array.isArray(data) ? data : [];
+      vendorsLoading = false;
+      var ov = document.getElementById('compOverlay');
+      if (ov && ov.style.display === 'flex' && currentCompIdx !== null) renderCompEditor();
+    })
+    .catch(function(){ vendorsLoading = false; cachedVendors = []; });
+}
+
 // Drop the cached materials + cost-center rates so the next component-editor
 // open refetches fresh Admin data. Called by Admin after any price edit so
 // changes there flow straight into estimates (no page reload needed).
@@ -63,9 +77,10 @@ window.invalidateComponentCaches = function() {
   cachedCostCenterItems = null; costCenterItemsLoading = false;
   cachedMaterials = null; materialsLoading = false;
   cachedDepartments = null; departmentsLoading = false;
+  cachedVendors = null; vendorsLoading = false;
   var ov = document.getElementById('compOverlay');
   if (ov && ov.style.display === 'flex' && currentCompIdx !== null) {
-    loadMaterials(); loadCostCenterItems(); loadDepartments(); // editor is open → refresh live
+    loadMaterials(); loadCostCenterItems(); loadDepartments(); loadVendors(); // editor is open → refresh live
   }
 };
 
@@ -198,6 +213,11 @@ function calcItemTotal(item, sqft, sheets) {
     var run = parseFloat(item.click||0) * parseFloat(sheets||0);
     var setup = (parseFloat(item.setup_min||0)/60) * parseFloat(item.ai_rate||0);
     return run + setup;
+  }
+  if (item && item.kind === 'outside') {
+    // Outside service sent to a vendor: qty × unit cost × (1 + markup%).
+    var oc = parseFloat(item.unit_cost||0) * parseFloat(item.qty||0);
+    return oc * (1 + parseFloat(item.markup||0) / 100);
   }
   if (item && item.kind === 'lamination') {
     // (Labor $/sqft + Film $/sqft) × sq ft × sides, floored at min charge.
@@ -418,7 +438,7 @@ function injectHTML() {
 
 window.openCompList = function() {
   injectStyles(); injectHTML();
-  loadDepartments(); loadCostCenterItems(); loadMaterials(); // preload so new tabs match departments
+  loadDepartments(); loadCostCenterItems(); loadMaterials(); loadVendors(); // preload so new tabs match departments
   renderCompList();
   document.getElementById('compListOverlay').style.display = 'flex';
 };
@@ -520,6 +540,9 @@ window.getComponentsItemized = function() {
           var setupC = (parseFloat(it.setup_min||0)/60) * parseFloat(it.ai_rate||0);
           detail = t.name + ' · $' + parseFloat(it.click||0).toFixed(4) + '/click × ' + lc.sheets + ' sheets' +
                    (setupC > 0.005 ? ' + $' + setupC.toFixed(2) + ' setup' : '');
+        } else if (it.kind === 'outside') {
+          var oMk2 = parseFloat(it.markup||0);
+          detail = (it.vendor_name ? 'Vendor: ' + it.vendor_name + ' · ' : '') + (it.qty||0) + ' × $' + parseFloat(it.unit_cost||0).toFixed(2) + (oMk2 > 0 ? ' + ' + oMk2 + '% markup' : '');
         } else if (it.kind === 'lamination') {
           var lSid = parseFloat(it.sides) === 2 ? 2 : 1;
           var lPer = parseFloat(it.labor||0) + parseFloat(it.material||0);
@@ -569,6 +592,7 @@ function openCompEditor() {
   loadDepartments();
   loadMaterials();
   loadCostCenterItems();
+  loadVendors();
   document.getElementById('compNameInput').value = components[currentCompIdx].name;
   document.getElementById('compOverlay').style.display = 'flex';
   renderCompEditor();
@@ -889,6 +913,33 @@ window.addLaminationFilm = function(tabIdx, materialId) {
   if (typeof calc === 'function') calc();
 };
 
+// Type-ahead vendor list (shared datalist) for the Outside Services tab.
+function buildVendorDatalist() {
+  if (!cachedVendors || !cachedVendors.length) return '<datalist id="vendorDatalist"></datalist>';
+  return '<datalist id="vendorDatalist">' + cachedVendors.map(function(v){
+    return '<option value="' + escHtml(v.name) + '">';
+  }).join('') + '</datalist>';
+}
+
+window.addOutsideService = function(tabIdx) {
+  components[currentCompIdx].processTabs[tabIdx].items.push({
+    id: nid(), kind: 'outside', name: '', vendor_id: null, vendor_name: '',
+    qty: 1, unit_cost: 0, markup: 0
+  });
+  renderCompEditor();
+};
+
+// Set vendor from the datalist input; resolve to a known vendor id when the
+// typed name matches one, but keep whatever text was entered either way.
+window.updateOutsideVendor = function(tabIdx, itemIdx, value) {
+  var it = components[currentCompIdx].processTabs[tabIdx].items[itemIdx];
+  it.vendor_name = value || '';
+  var v = (cachedVendors || []).find(function(x){ return x.name === value; });
+  it.vendor_id = v ? v.id : null;
+  renderCompEditor();
+  if (typeof calc === 'function') calc();
+};
+
 function buildRowMaterialOptions(lib, item) {
   var html = '<option value="">— ' + escHtml(lib.label) + ' —</option>';
   var anyOpts = false;
@@ -1127,7 +1178,7 @@ function renderProcessTab(c, idx) {
   if (tab.items.length) {
     // Press/digital/lamination render as self-labelled boxes; the grid header
     // only makes sense when at least one plain grid row is present.
-    var hasGridRow = tab.items.some(function(it){ return it.kind !== 'press' && it.kind !== 'digital' && it.kind !== 'lamination'; });
+    var hasGridRow = tab.items.some(function(it){ return it.kind !== 'press' && it.kind !== 'digital' && it.kind !== 'lamination' && it.kind !== 'outside'; });
     var headerCols = hasLib
       ? '<span>Process name</span><span>Material</span><span>Method</span><span>Rate ($)</span><span>Qty</span><span style="text-align:right">Total</span><span></span>'
       : '<span>Process / item</span><span>Method</span><span>Rate ($)</span><span>Qty</span><span style="text-align:right">Total</span><span></span>';
@@ -1162,6 +1213,22 @@ function renderProcessTab(c, idx) {
           '<div><div class="lbl">Sides</div><select onchange="updatePressField(' + idx + ',' + i + ',\'sides\',this.value)" style="height:30px"><option value="1"' + (lSides===1?' selected':'') + '>1</option><option value="2"' + (lSides===2?' selected':'') + '>2</option></select></div>' +
           lf('Min $', 'min_charge', item.min_charge, 56, 2) +
           '<div style="text-align:right;min-width:86px"><div class="lbl">Total</div><div class="row-total" style="font-weight:600">$' + lTotal.toFixed(2) + '</div><div style="font-size:10px;color:#aaa">' + (lMinHit ? '$'+parseFloat(item.min_charge).toFixed(2)+' minimum' : (sqft>0 ? ('$'+perL.toFixed(4)+'/sqft × '+Math.round(sqft)) : 'set layout sq ft')) + '</div></div>' +
+          '<button class="del-btn" onclick="deleteItem(' + idx + ',' + i + ')">×</button>' +
+        '</div>';
+        return;
+      }
+      if (item.kind === 'outside') {
+        var oTotal = calcItemTotal(item, sqft, sheets);
+        var oBase = parseFloat(item.unit_cost||0) * parseFloat(item.qty||0);
+        var oMk = parseFloat(item.markup||0);
+        var of = function(label, key, val, w, dec, step){ return '<div><div class="lbl">' + label + '</div><input type="number" step="' + step + '" value="' + (parseFloat(val||0)).toFixed(dec) + '" onchange="updatePressField(' + idx + ',' + i + ',\'' + key + '\',this.value)" style="width:' + w + 'px;text-align:right"></div>'; };
+        rowsHTML += '<div style="grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px;padding:9px 10px;border:1px solid #e8e6e2;border-radius:8px;margin-bottom:6px;background:#fafafa">' +
+          '<div style="flex:1;min-width:160px"><div class="lbl">Vendor (sent to)</div><input list="vendorDatalist" value="' + escHtml(item.vendor_name||'') + '" placeholder="Search vendors…" onchange="updateOutsideVendor(' + idx + ',' + i + ',this.value)" style="width:100%"></div>' +
+          '<div style="flex:1;min-width:130px"><div class="lbl">Description</div><input value="' + escHtml(item.name||'') + '" placeholder="Service description" onchange="updatePressField(' + idx + ',' + i + ',\'name\',this.value)" style="width:100%"></div>' +
+          of('Qty', 'qty', item.qty, 58, 0, '1') +
+          of('Unit $', 'unit_cost', item.unit_cost, 74, 2, '0.01') +
+          of('Markup %', 'markup', item.markup, 66, 0, '1') +
+          '<div style="text-align:right;min-width:86px"><div class="lbl">Total</div><div class="row-total" style="font-weight:600">$' + oTotal.toFixed(2) + '</div><div style="font-size:10px;color:#aaa">' + (oBase > 0 ? ('$' + oBase.toFixed(2) + ' cost' + (oMk > 0 ? ' + ' + oMk + '%' : '')) : 'set qty & cost') + '</div></div>' +
           '<button class="del-btn" onclick="deleteItem(' + idx + ',' + i + ')">×</button>' +
         '</div>';
         return;
@@ -1234,6 +1301,20 @@ function renderProcessTab(c, idx) {
         '</div>' +
         ccPickerHTML + rowsHTML +
         '<button class="add-item-btn" onclick="addItem(' + idx + ')">+ Add lamination item</button>';
+      return;
+    }
+    // Outside Services: each row is a vendor + qty + cost line — no cost-center
+    // cascade. Vendor is a type-ahead over the imported supplier list.
+    if (lib.cost_center_kind === 'outside_services') {
+      document.getElementById('compBody').innerHTML =
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">' +
+          '<div style="font-size:14px;font-weight:600;color:#1a1a18">' + escHtml(tab.name) + '</div>' +
+          '<span style="font-size:12px;color:#888">Tab total: <strong style="color:#1a1a18">$' + tabTotal.toFixed(2) + '</strong></span>' +
+        '</div>' +
+        buildVendorDatalist() +
+        (tab.items.length ? '' : '<div style="font-size:12px;color:#888;margin-bottom:10px">Add each service you send out — pick the vendor, then enter the quantity and the vendor\'s cost. Markup % is applied on top of the estimate margin.</div>') +
+        rowsHTML +
+        '<button class="add-item-btn" onclick="addOutsideService(' + idx + ')">+ Add outside service</button>';
       return;
     }
     if (lib.cost_center_kind) {

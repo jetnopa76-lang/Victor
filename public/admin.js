@@ -57,6 +57,7 @@ function _admHome(){
     {id:'stages',      i:'📋',l:'Prod. Stages',    d:'Kanban columns'},
     {id:'tiers',       i:'🏷',l:'Pricing Tiers',   d:'Customer discounts'},
     {id:'reps',        i:'👤',l:'Sales Reps',      d:'Commission rates'},
+    {id:'vendors',     i:'🚚',l:'Vendors',         d:'Outside-service suppliers'},
     {id:'business',    i:'🏢',l:'Business',        d:'Company info & defaults'},
   ];
   document.getElementById('_admC').innerHTML='<div class="_admHome">'+cards.map(function(c){return '<div class="_card" onclick="_goS(\''+c.id+'\')"><div class="_ci">'+c.i+'</div><div class="_cl">'+c.l+'</div><div class="_cd">'+c.d+'</div></div>';}).join('')+'</div>';
@@ -71,6 +72,7 @@ async function _goS(s){
   else if(s==='stages')await _rStages();
   else if(s==='tiers')await _rTiers();
   else if(s==='reps')await _rReps();
+  else if(s==='vendors')await _rVendors();
   else if(s==='business')_rBiz();
 }
 
@@ -298,6 +300,35 @@ function _eRep(id){_er=id;_rReps();}
 async function _uRep(){var b={name:document.getElementById('_er_n').value.trim(),email:document.getElementById('_er_e').value,phone:document.getElementById('_er_p').value,commission_pct:parseFloat(document.getElementById('_er_c').value)||0};if(!b.name){alert('Name required');return;}await _a('PUT','/api/reps/'+_er,b);_er=null;if(typeof toast==='function')toast('Rep updated');_rReps();}
 async function _aRep(){var n=document.getElementById('_nr').value.trim();if(!n)return;await _a('POST','/api/reps',{name:n,email:document.getElementById('_nre').value,commission_pct:parseFloat(document.getElementById('_nrc').value)||0});_rReps();}
 async function _dRep(id){if(!confirm('Delete?'))return;await _a('DELETE','/api/reps/'+id);if(_er===id)_er=null;_rReps();}
+
+// VENDORS (outside-service suppliers)
+var _vAll=null, _vq='';
+async function _rVendors(){
+  document.getElementById('_admTitle').textContent='Vendors';
+  if(!_vAll) _vAll=await _a('GET','/api/vendors?all=1');
+  document.getElementById('_admC').innerHTML='<div class="_sec">'+_bc('Vendors')+
+    '<div class="_form"><h4>Add vendor</h4><div class="_addrow"><input id="_vNewName" type="text" placeholder="Vendor name"><input id="_vNewCat" type="text" placeholder="Category (optional)" style="max-width:200px"><button class="_btn" onclick="_vAdd()">Add</button></div></div>'+
+    '<div style="margin-bottom:10px"><input id="_vSearchBox" type="text" placeholder="Search '+ (_vAll?_vAll.length:0) +' vendors…" value="'+_e(_vq)+'" oninput="_vFilter()" style="width:100%;height:38px;padding:0 12px;border:1px solid #e0ded8;border-radius:8px;font-size:13px;outline:none"></div>'+
+    '<div id="_vListBox">'+_vRenderList()+'</div></div>';
+  var b=document.getElementById('_vSearchBox'); if(b){b.focus();b.setSelectionRange(b.value.length,b.value.length);}
+}
+function _vRenderList(){
+  var q=_vq.trim().toLowerCase();
+  var filtered=q?(_vAll||[]).filter(function(v){return (v.name||'').toLowerCase().indexOf(q)>=0||(v.category||'').toLowerCase().indexOf(q)>=0;}):(_vAll||[]);
+  var shown=filtered.slice(0,60);
+  var note='<div style="font-size:11px;color:#888;margin-bottom:8px">Showing '+shown.length+' of '+filtered.length+(!q?' — type to narrow':'')+' · '+((_vAll||[]).length)+' total</div>';
+  var list=shown.map(function(v){
+    return '<div class="_li"><input value="'+_e(v.name)+'" onchange="_vSave('+v.id+',\'name\',this.value)" style="flex:1;height:30px;border:1px solid #e0ded8;border-radius:6px;padding:0 8px;font-size:13px;outline:none">'+
+      '<input value="'+_e(v.category||'')+'" placeholder="Category" onchange="_vSave('+v.id+',\'category\',this.value)" style="width:160px;height:30px;border:1px solid #e0ded8;border-radius:6px;padding:0 8px;font-size:12px;margin:0 8px;outline:none">'+
+      '<button class="_btnD" onclick="_vDel('+v.id+')">Del</button></div>';
+  }).join('');
+  if(!shown.length) list='<div style="color:#aaa;font-size:13px;padding:14px 4px">No vendors match.</div>';
+  return note+'<div class="_lc">'+list+'</div>';
+}
+function _vFilter(){var b=document.getElementById('_vSearchBox');if(b)_vq=b.value;document.getElementById('_vListBox').innerHTML=_vRenderList();}
+async function _vSave(id,f,val){var b={};b[f]=(f==='category'&&!val.trim())?null:val;await _a('PUT','/api/vendors/'+id,b);var v=(_vAll||[]).find(function(x){return x.id===id;});if(v)v[f]=b[f];if(window.invalidateComponentCaches)window.invalidateComponentCaches();if(typeof toast==='function')toast('Vendor updated');}
+async function _vDel(id){if(!confirm('Delete this vendor?'))return;await _a('DELETE','/api/vendors/'+id);_vAll=(_vAll||[]).filter(function(x){return x.id!==id;});if(window.invalidateComponentCaches)window.invalidateComponentCaches();_vFilter();}
+async function _vAdd(){var n=document.getElementById('_vNewName');var name=n?n.value.trim():'';if(!name)return;var c=document.getElementById('_vNewCat');var cat=c?c.value.trim():'';var r=await _a('POST','/api/vendors',{name:name,category:cat||null});if(r&&r.error){alert(r.error);return;}_vAll=null;_vq='';if(window.invalidateComponentCaches)window.invalidateComponentCaches();if(typeof toast==='function')toast('Vendor added');await _rVendors();}
 
 // BUSINESS
 function _rBiz(){document.getElementById('_admTitle').textContent='Business Settings';var s=JSON.parse(localStorage.getItem('victorSettings')||'{}');document.getElementById('_admC').innerHTML='<div class="_sec">'+_bc('Business Settings')+'<div class="_form"><h4>Company</h4><div class="_fg"><div class="_ff"><label>Name</label><input id="_bn" value="'+_e(s.companyName||'')+'" placeholder="Company name"></div><div class="_ff"><label>Phone</label><input id="_bp" value="'+_e(s.phone||'')+'" placeholder="(555) 555-5555"></div><div class="_ff"><label>Email</label><input id="_be" type="email" value="'+_e(s.email||'')+'" placeholder="info@co.com"></div><div class="_ff"><label>Address</label><input id="_ba" value="'+_e(s.address||'')+'" placeholder="123 Main St"></div></div></div><div class="_form"><h4>Defaults</h4><div class="_fg"><div class="_ff"><label>Tax rate (%)</label><input id="_bt" type="number" value="'+(s.defaultTax||0)+'" min="0" step="0.1"></div><div class="_ff"><label>Margin (%)</label><input id="_bm" type="number" value="'+(s.defaultMargin||40)+'" min="0" max="100"></div></div></div><button class="_btn" onclick="_sBiz()">Save settings</button></div>';}

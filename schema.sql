@@ -39,6 +39,18 @@ CREATE TABLE IF NOT EXISTS sales_reps (
   updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Outside-service vendors (suppliers work is sent out to)
+CREATE TABLE IF NOT EXISTS vendors (
+  id          SERIAL PRIMARY KEY,
+  name        VARCHAR(200) NOT NULL,
+  category    VARCHAR(120),
+  contact     VARCHAR(200),
+  phone       VARCHAR(60),
+  active      BOOLEAN NOT NULL DEFAULT true,
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS vendors_name_uidx ON vendors (lower(name));
+
 -- Pricing tiers
 CREATE TABLE IF NOT EXISTS pricing_tiers (
   id              SERIAL PRIMARY KEY,
