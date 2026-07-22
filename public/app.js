@@ -927,14 +927,35 @@ function saveNewPP(){
 var STATUS_LABEL_EST={draft:'Draft',sent:'Sent',approved:'Approved',declined:'Declined'};
 var STATUS_CLS_EST={draft:'b-draft',sent:'b-sent',approved:'b-approved',declined:'b-declined'};
 
+// Cache the full rep list so rep filters stay complete regardless of results shown.
+var _cachedReps=null;
+async function fillRepFilter(selectId, selectedId){
+  var el=document.getElementById(selectId); if(!el)return;
+  if(!_cachedReps){ try{ _cachedReps=await api('GET','/reps'); }catch(e){ _cachedReps=[]; } }
+  el.innerHTML='<option value="">All reps</option>'+_cachedReps.map(function(r){
+    return '<option value="'+r.id+'"'+(String(selectedId)===String(r.id)?' selected':'')+'>'+r.name+'</option>';
+  }).join('');
+}
+function clearEstFilters(){
+  ['estSearch','estStatusFilter','estRepFilter','estDateFrom','estDateTo'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
+  loadEstimates();
+}
+function clearOrderFilters(){
+  ['orderSearch','orderPayFilter','orderRepFilter','orderDateFrom','orderDateTo'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
+  loadOrders();
+}
 async function loadEstimates(){
   var search=document.getElementById('estSearch').value;
   var status=document.getElementById('estStatusFilter').value;
   var repId=document.getElementById('estRepFilter').value;
+  var dFrom=document.getElementById('estDateFrom').value;
+  var dTo=document.getElementById('estDateTo').value;
   var params=new URLSearchParams();
   if(search)params.set('search',search);
   if(status)params.set('status',status);
   if(repId)params.set('rep_id',repId);
+  if(dFrom)params.set('date_from',dFrom);
+  if(dTo)params.set('date_to',dTo);
   try{
     var data=await api('GET','/estimates?'+params.toString());
     var draft=data.filter(function(e){return e.status==='draft';}).length;
@@ -945,11 +966,7 @@ async function loadEstimates(){
       '<div class="stat"><div class="stat-label">Draft</div><div class="stat-val">'+draft+'</div></div>'+
       '<div class="stat"><div class="stat-label">Approved</div><div class="stat-val">'+approved+'</div></div>'+
       '<div class="stat"><div class="stat-label">Value</div><div class="stat-val">$'+total.toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+'</div></div>';
-    // populate rep filter
-    var repSeen={};
-    var repOpts='<option value="">All reps</option>';
-    data.forEach(function(e){if(e.sales_rep_id&&!repSeen[e.sales_rep_id]){repSeen[e.sales_rep_id]=1;repOpts+='<option value="'+e.sales_rep_id+'"'+(repId==e.sales_rep_id?' selected':'')+'>'+e.rep_name+'</option>';}});
-    document.getElementById('estRepFilter').innerHTML=repOpts;
+    await fillRepFilter('estRepFilter', repId);
     var tbody=document.getElementById('estTbody');
     if(!data.length){tbody.innerHTML='<tr class="empty-row"><td colspan="8">No estimates found.</td></tr>';return;}
     tbody.innerHTML=data.map(function(e){
@@ -1018,12 +1035,19 @@ function setOrderView(v){
 async function loadOrders(){
   var search=document.getElementById('orderSearch').value;
   var pay=document.getElementById('orderPayFilter').value;
+  var repId=document.getElementById('orderRepFilter').value;
+  var dFrom=document.getElementById('orderDateFrom').value;
+  var dTo=document.getElementById('orderDateTo').value;
   var params=new URLSearchParams();
   if(search)params.set('search',search);
   if(pay)params.set('payment_status',pay);
+  if(repId)params.set('rep_id',repId);
+  if(dFrom)params.set('date_from',dFrom);
+  if(dTo)params.set('date_to',dTo);
   try{
     var res=await Promise.all([api('GET','/orders?'+params.toString()),api('GET','/orders/stages')]);
     allOrders=res[0]; allStages=res[1];
+    fillRepFilter('orderRepFilter', repId);
     var unpaid=allOrders.filter(function(o){return o.payment_status==='unpaid';});
     var lastStageId=allStages.length?allStages[allStages.length-1].id:null;
     var open=allOrders.filter(function(o){return o.stage_id!=lastStageId;});

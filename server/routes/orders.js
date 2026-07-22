@@ -50,14 +50,17 @@ router.delete('/stages/:id', async (req, res) => {
 
 router.get('/', async (req, res) => {
   try {
-    const { stage_id, payment_status, search } = req.query;
+    const { stage_id, payment_status, search, rep_id, date_from, date_to } = req.query;
     let where = [], params = [], i = 1;
     if (stage_id) { where.push(`o.stage_id=$${i++}`); params.push(stage_id); }
     if (payment_status) { where.push(`o.payment_status=$${i++}`); params.push(payment_status); }
+    if (rep_id) { where.push(`o.sales_rep_id=$${i++}`); params.push(rep_id); }
     if (search) {
-      where.push(`(o.job_number ILIKE $${i} OR o.job_name ILIKE $${i} OR CONCAT(c.first_name,' ',c.last_name) ILIKE $${i} OR c.company ILIKE $${i})`);
+      where.push(`(o.job_number ILIKE $${i} OR o.job_name ILIKE $${i} OR CONCAT(c.first_name,' ',c.last_name) ILIKE $${i} OR c.company ILIKE $${i} OR r.name ILIKE $${i})`);
       params.push(`%${search}%`); i++;
     }
+    if (date_from) { where.push(`o.created_at::date >= $${i++}`); params.push(date_from); }
+    if (date_to)   { where.push(`o.created_at::date <= $${i++}`); params.push(date_to); }
     const whereClause = where.length ? 'WHERE ' + where.join(' AND ') : '';
     const { rows } = await db.query(
       `SELECT o.*, CONCAT(c.first_name,' ',c.last_name) AS customer_name, c.company,

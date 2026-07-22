@@ -5,13 +5,19 @@ const db = require('../db');
 // GET all estimates (with customer + rep names)
 router.get('/', async (req, res) => {
   try {
-    const { customer_id, rep_id, status } = req.query;
+    const { customer_id, rep_id, status, search, date_from, date_to } = req.query;
     let where = [];
     let params = [];
     let i = 1;
     if (customer_id) { where.push(`e.customer_id=$${i++}`); params.push(customer_id); }
     if (rep_id)      { where.push(`e.sales_rep_id=$${i++}`); params.push(rep_id); }
     if (status)      { where.push(`e.status=$${i++}`); params.push(status); }
+    if (search) {
+      where.push(`(e.job_name ILIKE $${i} OR e.estimate_number ILIKE $${i} OR CONCAT(c.first_name,' ',c.last_name) ILIKE $${i} OR c.company ILIKE $${i} OR r.name ILIKE $${i})`);
+      params.push(`%${search}%`); i++;
+    }
+    if (date_from) { where.push(`e.created_at::date >= $${i++}`); params.push(date_from); }
+    if (date_to)   { where.push(`e.created_at::date <= $${i++}`); params.push(date_to); }
 
     const whereClause = where.length ? 'WHERE ' + where.join(' AND ') : '';
     const { rows } = await db.query(

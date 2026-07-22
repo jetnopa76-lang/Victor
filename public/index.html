@@ -481,6 +481,9 @@ td.muted{color:#888;font-size:12px}
     <select id="estRepFilter" onchange="loadEstimates()">
       <option value="">All reps</option>
     </select>
+    <label style="font-size:11px;color:#888;display:flex;align-items:center;gap:4px">From <input type="date" id="estDateFrom" onchange="loadEstimates()" style="width:auto"></label>
+    <label style="font-size:11px;color:#888;display:flex;align-items:center;gap:4px">To <input type="date" id="estDateTo" onchange="loadEstimates()" style="width:auto"></label>
+    <button class="btn btn-sm" onclick="clearEstFilters()">Clear</button>
   </div>
   <div class="tbl-wrap">
     <table>
@@ -538,6 +541,12 @@ td.muted{color:#888;font-size:12px}
       <option value="deposit">Deposit</option>
       <option value="paid">Paid in full</option>
     </select>
+    <select id="orderRepFilter" onchange="loadOrders()">
+      <option value="">All reps</option>
+    </select>
+    <label style="font-size:11px;color:#888;display:flex;align-items:center;gap:4px">From <input type="date" id="orderDateFrom" onchange="loadOrders()" style="width:auto"></label>
+    <label style="font-size:11px;color:#888;display:flex;align-items:center;gap:4px">To <input type="date" id="orderDateTo" onchange="loadOrders()" style="width:auto"></label>
+    <button class="btn btn-sm" onclick="clearOrderFilters()">Clear</button>
   </div>
 
   <div id="orderListView" style="display:none">
