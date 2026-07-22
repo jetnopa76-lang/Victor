@@ -270,13 +270,21 @@ function calcLayoutCost(layout) {
   // ── Roll goods: lay pieces across the roll width, consume length; rotate to
   //    minimize the length pulled. Billed by width × length used. ──
   function fitRoll(pw, ph) {
-    var a = Math.max(1, Math.floor((sw + gut) / (pw + gut)));
+    var a = Math.floor((sw + gut) / (pw + gut));   // pieces across the roll width
+    if (a < 1) return { across: 0, rows: 0, len: Infinity, pw: pw, ph: ph }; // too wide for the roll → invalid orientation
     var rows = Math.max(1, Math.ceil(qty / a));
     var len = grip + rows * (ph + gut) - gut;
     return { across: a, rows: rows, len: len, pw: pw, ph: ph };
   }
   var r0 = fitRoll(bw, bh), r90 = fitRoll(bh, bw);
-  var rb = r90.len < r0.len ? r90 : r0;                                    // less length wins
+  var rb;
+  if (r0.len === Infinity && r90.len === Infinity) {
+    // Piece is wider than the roll in both orientations — best effort, 1 across.
+    var rowsF = Math.max(1, qty);
+    rb = { across: 1, rows: rowsF, len: grip + rowsF * (bh + gut) - gut, pw: bw, ph: bh };
+  } else {
+    rb = (r90.len < r0.len) ? r90 : r0;                                    // only fitting orientations; less length wins
+  }
   var rollLen = sh > 0 ? sh : rb.len;
   var rolls = Math.max(1, Math.ceil(rb.len / rollLen));
   var sqft = (sw/12) * (rb.len/12);
