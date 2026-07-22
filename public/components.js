@@ -778,16 +778,16 @@ var TAB_LIBRARY_MAP = [
   { match: /fulfill?ment/i, cost_center_kind: 'fulfillment', label: 'Fulfillment' },
   { match: /shipping|delivery/i, cost_center_kind: 'shipping', label: 'Shipping' },
   { match: /post\s*press/i, cost_center_kind: 'postpress', label: 'Postpress' },
-  { match: /bindery|hardware|material|finishing/i, categories: ['Wide Format / Hardware'], label: 'Materials' },
+  { match: /bindery|hardware|material|finishing/i, cost_center_kind: 'bindery', label: 'Materials' },
   { match: /^press$|^\s*press\s*$|press(?!.*post)/i, cost_center_kind: 'press', label: 'Press mode' }
 ];
 
 // Wide-format material categories some departments also pick from.
-var KIND_CATEGORIES = { bindery: ['Wide Format / Hardware'], lamination: ['Wide Format / Lamination'] };
+var KIND_CATEGORIES = { lamination: ['Wide Format / Lamination'] };
 
 // Material-only departments: no cost-center/process cascade, just a material
-// picker. (Bindery is now the "Materials" tab — Hardware add-ons only.)
-var MATERIAL_ONLY_KINDS = ['bindery'];
+// picker. (None currently — Materials/Hardware is now a real cost center.)
+var MATERIAL_ONLY_KINDS = [];
 
 // Resolve a tab to its cost-center department. Prefer the kind stored on the
 // tab (new components mirror departments); fall back to name-matching for
@@ -866,6 +866,8 @@ function buildProcessDropdownOptions(ccId, kind) {
       label = x.name + ' · $' + (parseFloat(x.unit_cost)||0).toFixed(4) + '/click';
     } else if (kind === 'lamination') {
       label = x.name + ' · $' + (parseFloat(x.sqft_rate||0)).toFixed(4) + '/sqft labor';
+    } else if (kind === 'bindery') {
+      label = (x.code ? x.code + ' — ' : '') + x.name + ' · $' + (parseFloat(x.unit_cost)||0).toFixed(2) + '/ea';
     } else {
       label = (x.code ? x.code + ' — ' : '') + x.name;
     }
@@ -979,6 +981,8 @@ function buildRowMaterialOptions(lib, item) {
               label = (x.name || '') + ' · $' + (parseFloat(x.unit_cost)||0).toFixed(4) + '/click';
             } else if (lib.cost_center_kind === 'lamination') {
               label = (x.name || '') + ' · $' + (parseFloat(x.sqft_rate||0)).toFixed(4) + '/sqft labor';
+            } else if (lib.cost_center_kind === 'bindery') {
+              label = (x.code ? x.code + ' — ' : '') + (x.name || '') + ' · $' + (parseFloat(x.unit_cost)||0).toFixed(2) + '/ea';
             } else {
               label = (x.code ? x.code + ' — ' : '') + (x.name || '');
             }
@@ -1289,7 +1293,7 @@ function renderProcessTab(c, idx) {
                     lib.cost_center_kind === 'shipping' ? 'Shipping' :
                     lib.cost_center_kind === 'prepress' ? 'Prepress' :
                     lib.cost_center_kind === 'postpress' ? 'Postpress' :
-                    lib.cost_center_kind === 'bindery' ? 'Bindery' :
+                    lib.cost_center_kind === 'bindery' ? 'Materials' :
                     lib.cost_center_kind === 'outside_services' ? 'Outside Services' : tab.name;
     var inner = '';
     // Lamination: one-step picker — choose the film and get a single row that
