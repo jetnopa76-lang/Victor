@@ -199,6 +199,12 @@ function calcItemTotal(item, sqft, sheets) {
     var setup = (parseFloat(item.setup_min||0)/60) * parseFloat(item.ai_rate||0);
     return run + setup;
   }
+  if (item && item.kind === 'lamination') {
+    // (Labor $/sqft + Material $/sqft) × sq ft, floored at min charge.
+    var lamTotal = (parseFloat(item.labor||0) + parseFloat(item.material||0)) * parseFloat(sqft || 0);
+    var lamMin = parseFloat(item.min_charge||0);
+    return lamMin > 0 ? Math.max(lamTotal, lamMin) : lamTotal;
+  }
   return parseFloat(item.rate||0) * parseFloat(item.qty||1);
 }
 
@@ -513,6 +519,9 @@ window.getComponentsItemized = function() {
           var setupC = (parseFloat(it.setup_min||0)/60) * parseFloat(it.ai_rate||0);
           detail = t.name + ' · $' + parseFloat(it.click||0).toFixed(4) + '/click × ' + lc.sheets + ' sheets' +
                    (setupC > 0.005 ? ' + $' + setupC.toFixed(2) + ' setup' : '');
+        } else if (it.kind === 'lamination') {
+          var perLam = parseFloat(it.labor||0) + parseFloat(it.material||0);
+          detail = t.name + ' · $' + perLam.toFixed(4) + '/sqft (labor+material) × ' + Math.round(lc.sqft);
         } else if (it.method === 'per_sqft') {
           detail = t.name + ' · $' + parseFloat(it.rate||0).toFixed(4) + '/sqft × ' + (it.qty||0);
         } else if (it.method === 'per_unit') {
@@ -737,13 +746,14 @@ window.addProcessTab = function() {
 var TAB_LIBRARY_MAP = [
   { match: /pre\s*press|prepress/i, cost_center_kind: 'prepress', label: 'Prepress' },
   { match: /digital/i, cost_center_kind: 'digital', label: 'Digital Press' },
-  { match: /post\s*press|lamination/i, cost_center_kind: 'postpress', categories: ['Wide Format / Lamination'], label: 'Postpress / Lamination' },
+  { match: /lamination/i, cost_center_kind: 'lamination', label: 'Lamination' },
+  { match: /post\s*press/i, cost_center_kind: 'postpress', label: 'Postpress' },
   { match: /bindery|hardware|install|finishing/i, categories: ['Wide Format / Hardware'], label: 'Hardware' },
   { match: /^press$|^\s*press\s*$|press(?!.*post)/i, cost_center_kind: 'press', label: 'Press mode' }
 ];
 
 // Wide-format material categories some departments also pick from.
-var KIND_CATEGORIES = { postpress: ['Wide Format / Lamination'], bindery: ['Wide Format / Hardware'] };
+var KIND_CATEGORIES = { bindery: ['Wide Format / Hardware'] };
 
 // Resolve a tab to its cost-center department. Prefer the kind stored on the
 // tab (new components mirror departments); fall back to name-matching for
@@ -819,6 +829,8 @@ function buildProcessDropdownOptions(ccId, kind) {
       label = modeLabel + ' · $' + rate.toFixed(4) + '/sqft';
     } else if (kind === 'digital') {
       label = x.name + ' · $' + (parseFloat(x.unit_cost)||0).toFixed(4) + '/click';
+    } else if (kind === 'lamination') {
+      label = x.name + ' · $' + (parseFloat(x.sqft_rate||0) + parseFloat(x.dm_rate||0)).toFixed(4) + '/sqft';
     } else {
       label = (x.code ? x.code + ' — ' : '') + x.name;
     }
@@ -873,6 +885,8 @@ function buildRowMaterialOptions(lib, item) {
               label = modeLabel + ' · $' + rate.toFixed(4) + '/sqft';
             } else if (lib.cost_center_kind === 'digital') {
               label = (x.name || '') + ' · $' + (parseFloat(x.unit_cost)||0).toFixed(4) + '/click';
+            } else if (lib.cost_center_kind === 'lamination') {
+              label = (x.name || '') + ' · $' + (parseFloat(x.sqft_rate||0) + parseFloat(x.dm_rate||0)).toFixed(4) + '/sqft';
             } else {
               label = (x.code ? x.code + ' — ' : '') + (x.name || '');
             }
@@ -967,6 +981,20 @@ window.applyRowMaterial = function(tabIdx, itemIdx, value) {
       item.click = parseFloat(cc.unit_cost) || 0;
       item.setup_min = parseFloat(cc.setup_min) || 0;
       item.ai_rate = parseFloat(cc.ai_rate) || 0;
+      delete item.method; delete item.rate; delete item.qty;
+      renderCompEditor();
+      return;
+    }
+    if (cc.cc_kind === 'lamination') {
+      // Lamination: Labor $/sqft + Material $/sqft, floored at min charge.
+      item.kind = 'lamination';
+      item.cost_center_item_id = cc.id;
+      item.material_id = null;
+      item.preset_id = null;
+      item.name = cc.name;
+      item.labor = parseFloat(cc.sqft_rate) || 0;
+      item.material = parseFloat(cc.dm_rate) || 0;
+      item.min_charge = parseFloat(cc.min_charge) || 0;
       delete item.method; delete item.rate; delete item.qty;
       renderCompEditor();
       return;
@@ -1083,6 +1111,20 @@ function renderProcessTab(c, idx) {
         '</div>';
         return;
       }
+      if (item.kind === 'lamination') {
+        var lTotal = calcItemTotal(item, sqft, sheets);
+        var perL = parseFloat(item.labor||0) + parseFloat(item.material||0);
+        var lf = function(label, key, val, w, dec){ return '<div><div class="lbl">' + label + '</div><input type="number" step="' + (dec===2?'0.01':'0.0001') + '" value="' + (parseFloat(val||0)).toFixed(dec) + '" onchange="updatePressField(' + idx + ',' + i + ',\'' + key + '\',this.value)" style="width:' + w + 'px;text-align:right"></div>'; };
+        rowsHTML += '<div style="grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px;padding:9px 10px;border:1px solid #e8e6e2;border-radius:8px;margin-bottom:6px;background:#fafafa">' +
+          '<div style="flex:1;min-width:130px"><div class="lbl">Lamination</div><input value="' + escHtml(item.name||'') + '" onchange="updatePressField(' + idx + ',' + i + ',\'name\',this.value)" style="width:100%"></div>' +
+          lf('Labor $/sqft', 'labor', item.labor, 82, 4) +
+          lf('Material $/sqft', 'material', item.material, 90, 4) +
+          lf('Min $', 'min_charge', item.min_charge, 60, 2) +
+          '<div style="text-align:right;min-width:82px"><div class="lbl">Total</div><div class="row-total" style="font-weight:600">$' + lTotal.toFixed(2) + '</div><div style="font-size:10px;color:#aaa">' + (parseFloat(item.min_charge||0) > lTotal - 0.005 && parseFloat(item.min_charge||0) > 0 ? '$'+parseFloat(item.min_charge).toFixed(2)+' minimum' : (sqft>0 ? ('$'+perL.toFixed(4)+'/sqft × '+Math.round(sqft)) : 'set layout sq ft')) + '</div></div>' +
+          '<button class="del-btn" onclick="deleteItem(' + idx + ',' + i + ')">×</button>' +
+        '</div>';
+        return;
+      }
       if (item.kind === 'press') {
         var pTotal = calcItemTotal(item, sqft, sheets);
         var perSqft = parseFloat(item.sqft_rate||0) + parseFloat(item.ink_cmyk||0) + (item.white ? parseFloat(item.ink_white||0) : 0);
@@ -1126,6 +1168,7 @@ function renderProcessTab(c, idx) {
     var pickedCcId = tab._pickedCcId || '';
     var deptLabel = lib.cost_center_kind === 'press' ? 'Press' :
                     lib.cost_center_kind === 'digital' ? 'Digital Press' :
+                    lib.cost_center_kind === 'lamination' ? 'Lamination' :
                     lib.cost_center_kind === 'prepress' ? 'Prepress' :
                     lib.cost_center_kind === 'postpress' ? 'Postpress' :
                     lib.cost_center_kind === 'bindery' ? 'Bindery' :

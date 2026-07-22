@@ -258,9 +258,10 @@ INSERT INTO cost_center_departments (kind, label, model, sort_order) VALUES
   ('prepress','Prepress','prepress',0),
   ('press','Wide Format Press','press',1),
   ('digital','Digital Press','digital',2),
-  ('postpress','Postpress','speed',3),
-  ('bindery','Bindery','speed',4),
-  ('outside_services','Outside Services','speed',5)
+  ('lamination','Lamination','lamination',3),
+  ('postpress','Postpress','speed',4),
+  ('bindery','Bindery','speed',5),
+  ('outside_services','Outside Services','speed',6)
 ON CONFLICT (kind) DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS cost_centers (
