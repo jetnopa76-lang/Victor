@@ -200,9 +200,9 @@ function calcItemTotal(item, sqft, sheets) {
     return run + setup;
   }
   if (item && item.kind === 'lamination') {
-    // Labor $/sqft × sq ft, floored at min charge. The film itself is picked
-    // separately from the lamination material catalog (its own per-sqft line).
-    var lamTotal = parseFloat(item.labor||0) * parseFloat(sqft || 0);
+    // (Labor $/sqft + Film $/sqft) × sq ft × sides, floored at min charge.
+    var lamSides = parseFloat(item.sides) === 2 ? 2 : 1;
+    var lamTotal = (parseFloat(item.labor||0) + parseFloat(item.material||0)) * parseFloat(sqft || 0) * lamSides;
     var lamMin = parseFloat(item.min_charge||0);
     return lamMin > 0 ? Math.max(lamTotal, lamMin) : lamTotal;
   }
@@ -521,7 +521,9 @@ window.getComponentsItemized = function() {
           detail = t.name + ' · $' + parseFloat(it.click||0).toFixed(4) + '/click × ' + lc.sheets + ' sheets' +
                    (setupC > 0.005 ? ' + $' + setupC.toFixed(2) + ' setup' : '');
         } else if (it.kind === 'lamination') {
-          detail = t.name + ' · $' + parseFloat(it.labor||0).toFixed(4) + '/sqft labor × ' + Math.round(lc.sqft);
+          var lSid = parseFloat(it.sides) === 2 ? 2 : 1;
+          var lPer = parseFloat(it.labor||0) + parseFloat(it.material||0);
+          detail = t.name + ' · $' + lPer.toFixed(4) + '/sqft (labor+film) × ' + Math.round(lc.sqft) + (lSid === 2 ? ' × 2 sides' : '');
         } else if (it.method === 'per_sqft') {
           detail = t.name + ' · $' + parseFloat(it.rate||0).toFixed(4) + '/sqft × ' + (it.qty||0);
         } else if (it.method === 'per_unit') {
@@ -857,6 +859,36 @@ window.addProcessFromCC = function(tabIdx, value) {
   applyRowMaterial(tabIdx, newIdx, value);
 };
 
+// Default lamination labor rate + min, read from the Lamination cost center
+// ("Apply Lamination"). Falls back to a sensible default if not loaded yet.
+function laminationDefaults() {
+  var lam = (cachedCostCenterItems || []).filter(function(x){ return x.cc_kind === 'lamination'; });
+  if (lam.length) return { labor: parseFloat(lam[0].sqft_rate) || 0, min: parseFloat(lam[0].min_charge) || 0 };
+  return { labor: 0, min: 0 };
+}
+
+// One-step lamination: pick a film and get a single consolidated row carrying
+// the film cost, the standard labor rate, and the total — no separate pickers.
+window.addLaminationFilm = function(tabIdx, materialId) {
+  if (!materialId) return;
+  var m = (cachedMaterials || []).find(function(x){ return String(x.id) === String(materialId); });
+  if (!m) return;
+  var d = laminationDefaults();
+  var nm = (m.name || 'Lamination');
+  components[currentCompIdx].processTabs[tabIdx].items.push({
+    id: nid(),
+    kind: 'lamination',
+    name: nm.length > 80 ? nm.substring(0, 77) + '…' : nm,
+    material_id: m.id,
+    labor: d.labor,
+    material: parseFloat(m.cost) || 0,
+    min_charge: d.min,
+    sides: 1
+  });
+  renderCompEditor();
+  if (typeof calc === 'function') calc();
+};
+
 function buildRowMaterialOptions(lib, item) {
   var html = '<option value="">— ' + escHtml(lib.label) + ' —</option>';
   var anyOpts = false;
@@ -1093,12 +1125,15 @@ function renderProcessTab(c, idx) {
   );
   var rowsHTML = '';
   if (tab.items.length) {
+    // Press/digital/lamination render as self-labelled boxes; the grid header
+    // only makes sense when at least one plain grid row is present.
+    var hasGridRow = tab.items.some(function(it){ return it.kind !== 'press' && it.kind !== 'digital' && it.kind !== 'lamination'; });
     var headerCols = hasLib
       ? '<span>Process name</span><span>Material</span><span>Method</span><span>Rate ($)</span><span>Qty</span><span style="text-align:right">Total</span><span></span>'
       : '<span>Process / item</span><span>Method</span><span>Rate ($)</span><span>Qty</span><span style="text-align:right">Total</span><span></span>';
     var rowCls = hasLib ? 'proc-row proc-row-mat' : 'proc-row';
     var hdrCls = hasLib ? 'proc-header proc-header-mat' : 'proc-header';
-    rowsHTML = '<div class="' + hdrCls + '">' + headerCols + '</div>';
+    rowsHTML = hasGridRow ? ('<div class="' + hdrCls + '">' + headerCols + '</div>') : '';
     tab.items.forEach(function(item, i) {
       if (item.kind === 'digital') {
         var dTotal = calcItemTotal(item, sqft, sheets);
@@ -1116,13 +1151,17 @@ function renderProcessTab(c, idx) {
       }
       if (item.kind === 'lamination') {
         var lTotal = calcItemTotal(item, sqft, sheets);
-        var perL = parseFloat(item.labor||0);
+        var lSides = parseFloat(item.sides) === 2 ? 2 : 1;
+        var perL = (parseFloat(item.labor||0) + parseFloat(item.material||0)) * lSides;
+        var lMinHit = parseFloat(item.min_charge||0) > lTotal - 0.005 && parseFloat(item.min_charge||0) > 0;
         var lf = function(label, key, val, w, dec){ return '<div><div class="lbl">' + label + '</div><input type="number" step="' + (dec===2?'0.01':'0.0001') + '" value="' + (parseFloat(val||0)).toFixed(dec) + '" onchange="updatePressField(' + idx + ',' + i + ',\'' + key + '\',this.value)" style="width:' + w + 'px;text-align:right"></div>'; };
         rowsHTML += '<div style="grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px;padding:9px 10px;border:1px solid #e8e6e2;border-radius:8px;margin-bottom:6px;background:#fafafa">' +
-          '<div style="flex:1;min-width:130px"><div class="lbl">Lamination labor</div><input value="' + escHtml(item.name||'') + '" onchange="updatePressField(' + idx + ',' + i + ',\'name\',this.value)" style="width:100%"></div>' +
-          lf('Labor $/sqft', 'labor', item.labor, 82, 4) +
-          lf('Min $', 'min_charge', item.min_charge, 60, 2) +
-          '<div style="text-align:right;min-width:82px"><div class="lbl">Total</div><div class="row-total" style="font-weight:600">$' + lTotal.toFixed(2) + '</div><div style="font-size:10px;color:#aaa">' + (parseFloat(item.min_charge||0) > lTotal - 0.005 && parseFloat(item.min_charge||0) > 0 ? '$'+parseFloat(item.min_charge).toFixed(2)+' minimum' : (sqft>0 ? ('$'+perL.toFixed(4)+'/sqft × '+Math.round(sqft)) : 'set layout sq ft')) + '</div></div>' +
+          '<div style="flex:1;min-width:150px"><div class="lbl">Film</div><input value="' + escHtml(item.name||'') + '" onchange="updatePressField(' + idx + ',' + i + ',\'name\',this.value)" style="width:100%"></div>' +
+          lf('Labor $/sqft', 'labor', item.labor, 78, 4) +
+          lf('Film $/sqft', 'material', item.material, 78, 4) +
+          '<div><div class="lbl">Sides</div><select onchange="updatePressField(' + idx + ',' + i + ',\'sides\',this.value)" style="height:30px"><option value="1"' + (lSides===1?' selected':'') + '>1</option><option value="2"' + (lSides===2?' selected':'') + '>2</option></select></div>' +
+          lf('Min $', 'min_charge', item.min_charge, 56, 2) +
+          '<div style="text-align:right;min-width:86px"><div class="lbl">Total</div><div class="row-total" style="font-weight:600">$' + lTotal.toFixed(2) + '</div><div style="font-size:10px;color:#aaa">' + (lMinHit ? '$'+parseFloat(item.min_charge).toFixed(2)+' minimum' : (sqft>0 ? ('$'+perL.toFixed(4)+'/sqft × '+Math.round(sqft)) : 'set layout sq ft')) + '</div></div>' +
           '<button class="del-btn" onclick="deleteItem(' + idx + ',' + i + ')">×</button>' +
         '</div>';
         return;
@@ -1179,6 +1218,24 @@ function renderProcessTab(c, idx) {
                     lib.cost_center_kind === 'bindery' ? 'Bindery' :
                     lib.cost_center_kind === 'outside_services' ? 'Outside Services' : tab.name;
     var inner = '';
+    // Lamination: one-step picker — choose the film and get a single row that
+    // already carries the standard labor rate. No cost-center/process cascade.
+    if (lib.cost_center_kind === 'lamination') {
+      inner +=
+        '<div class="cc-picker-row" style="grid-template-columns:120px 1fr">' +
+          '<div><label class="lbl">Lamination</label><div class="cc-dept" style="background:#0C447C">Film</div></div>' +
+          '<div><label class="lbl">Add a laminate film</label><select class="inp" onchange="addLaminationFilm(' + idx + ',this.value);this.value=\'\'">' + buildPickerMaterialOptions(['Wide Format / Lamination']) + '</select></div>' +
+        '</div>';
+      ccPickerHTML = '<div class="cc-picker">' + inner + '</div>';
+      document.getElementById('compBody').innerHTML =
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">' +
+          '<div style="font-size:14px;font-weight:600;color:#1a1a18">' + escHtml(tab.name) + '</div>' +
+          '<span style="font-size:12px;color:#888">Tab total: <strong style="color:#1a1a18">$' + tabTotal.toFixed(2) + '</strong></span>' +
+        '</div>' +
+        ccPickerHTML + rowsHTML +
+        '<button class="add-item-btn" onclick="addItem(' + idx + ')">+ Add lamination item</button>';
+      return;
+    }
     if (lib.cost_center_kind) {
       inner +=
         '<div class="cc-picker-row">' +
