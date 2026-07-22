@@ -778,12 +778,16 @@ var TAB_LIBRARY_MAP = [
   { match: /fulfill?ment/i, cost_center_kind: 'fulfillment', label: 'Fulfillment' },
   { match: /shipping|delivery/i, cost_center_kind: 'shipping', label: 'Shipping' },
   { match: /post\s*press/i, cost_center_kind: 'postpress', label: 'Postpress' },
-  { match: /bindery|hardware|install|finishing/i, categories: ['Wide Format / Hardware'], label: 'Hardware' },
+  { match: /bindery|hardware|material|finishing/i, categories: ['Wide Format / Hardware'], label: 'Materials' },
   { match: /^press$|^\s*press\s*$|press(?!.*post)/i, cost_center_kind: 'press', label: 'Press mode' }
 ];
 
 // Wide-format material categories some departments also pick from.
 var KIND_CATEGORIES = { bindery: ['Wide Format / Hardware'], lamination: ['Wide Format / Lamination'] };
+
+// Material-only departments: no cost-center/process cascade, just a material
+// picker. (Bindery is now the "Materials" tab — Hardware add-ons only.)
+var MATERIAL_ONLY_KINDS = ['bindery'];
 
 // Resolve a tab to its cost-center department. Prefer the kind stored on the
 // tab (new components mirror departments); fall back to name-matching for
@@ -792,7 +796,8 @@ function getTabLibrary(tab) {
   var kind = (tab && typeof tab === 'object') ? tab.kind : null;
   var name = (tab && typeof tab === 'object') ? tab.name : tab;
   if (kind) {
-    var lib = { cost_center_kind: kind, label: name };
+    var lib = { label: name };
+    if (MATERIAL_ONLY_KINDS.indexOf(kind) === -1) lib.cost_center_kind = kind;
     if (KIND_CATEGORIES[kind]) lib.categories = KIND_CATEGORIES[kind];
     return lib;
   }

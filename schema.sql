@@ -272,7 +272,7 @@ INSERT INTO cost_center_departments (kind, label, model, sort_order) VALUES
   ('digital','Digital Press','digital',2),
   ('lamination','Lamination','lamination',3),
   ('postpress','Postpress','speed',4),
-  ('bindery','Bindery','speed',5),
+  ('bindery','Materials','speed',5),
   ('outside_services','Outside Services','speed',6)
 ON CONFLICT (kind) DO NOTHING;
 
