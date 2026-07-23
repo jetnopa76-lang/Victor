@@ -356,7 +356,7 @@ function injectStyles() {
   style.id = 'comp-styles';
   style.textContent = `
     #compOverlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.45);z-index:9998;display:none;align-items:flex-start;justify-content:center;padding:20px 0;overflow-y:auto}
-    #compWindow{background:#fff;border-radius:16px;width:96%;max-width:1160px;margin:auto;overflow:hidden;position:relative;top:10px}
+    #compWindow{background:#fff;border-radius:16px;width:96%;max-width:1240px;margin:auto;overflow:hidden;position:relative;top:10px}
     #compListOverlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.45);z-index:9997;display:none;align-items:flex-start;justify-content:center;padding:20px 0;overflow-y:auto}
     #compListWindow{background:#fff;border-radius:16px;width:95%;max-width:600px;margin:auto;overflow:hidden;position:relative;top:10px}
     .cw-header{background:#1a1a18;color:#fff;padding:12px 16px;display:flex;align-items:center;justify-content:space-between}
@@ -788,6 +788,7 @@ var TAB_LIBRARY_MAP = [
   { match: /pre\s*press|prepress/i, cost_center_kind: 'prepress', label: 'Prepress' },
   { match: /digital/i, cost_center_kind: 'digital', label: 'Digital Press' },
   { match: /lamination/i, cost_center_kind: 'lamination', categories: ['Wide Format / Lamination'], label: 'Lamination' },
+  { match: /flatbed/i, cost_center_kind: 'flatbed', label: 'Flatbed' },
   { match: /cutting|trimming|cutter/i, cost_center_kind: 'cutting', label: 'Cutting' },
   { match: /installation/i, cost_center_kind: 'installation', label: 'Installation' },
   { match: /fulfill?ment/i, cost_center_kind: 'fulfillment', label: 'Fulfillment' },
@@ -1335,6 +1336,7 @@ function renderProcessTab(c, idx) {
                     lib.cost_center_kind === 'digital' ? 'Digital Press' :
                     lib.cost_center_kind === 'lamination' ? 'Lamination' :
                     lib.cost_center_kind === 'cutting' ? 'Cutting' :
+                    lib.cost_center_kind === 'flatbed' ? 'Flatbed' :
                     lib.cost_center_kind === 'installation' ? 'Installation' :
                     lib.cost_center_kind === 'fulfillment' ? 'Fulfillment' :
                     lib.cost_center_kind === 'shipping' ? 'Shipping' :
