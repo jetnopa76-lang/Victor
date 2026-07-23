@@ -197,7 +197,7 @@ td.muted{color:#888;font-size:12px}
 
 <div id="loginOverlay">
   <div class="login-card">
-    <div class="login-brand">Victor</div>
+    <div class="login-brand"><img src="/victor-logo.svg" alt="Victor" style="height:26px;display:inline-block"></div>
     <div class="login-sub">Enter your PIN to sign in</div>
     <input id="loginPin" class="login-pin" type="password" inputmode="numeric" autocomplete="off" maxlength="8"
            onkeydown="if(event.key==='Enter')doLogin()">
@@ -212,7 +212,7 @@ td.muted{color:#888;font-size:12px}
 </div>
 
 <nav class="nav">
-  <span class="nav-brand">Victor</span>
+  <span class="nav-brand" style="display:inline-flex;align-items:center"><img src="/victor-logo.svg" alt="Victor" style="height:15px;display:block"></span>
   <button class="nav-tab nav-tab-primary active" onclick="showPage('estimator',this)">✏️ Estimator</button>
   <button class="nav-tab" onclick="showPage('estimates',this)">Estimates</button>
   <button class="nav-tab" onclick="showPage('customers',this)">Customers</button>
