@@ -1079,6 +1079,8 @@ window.applyRowMaterial = function(tabIdx, itemIdx, value) {
     var speedPerH = parseFloat(cc.speed_per_h) || 0;
     var setupMin = parseFloat(cc.setup_min) || 0;
     var minCharge = parseFloat(cc.min_charge) || 0;
+    var dmRate = parseFloat(cc.dm_rate) || 0;
+    var hourly = rate + dmRate; // full hourly cost = AI (labor) + DM (direct materials)
     // Pricing model is per cost center (falls back to the department default).
     var ccModel = cc.cc_model || deptModelForKind(cc.cc_kind);
     var isPress = ccModel === 'press';
@@ -1145,15 +1147,15 @@ window.applyRowMaterial = function(tabIdx, itemIdx, value) {
       // Speed/setup process → one self-labelled row with setup folded in
       // (no separate Setup line): Setup $ + Rate $ × qty, floored at min.
       var uRate = 0, uQty = 1, uUnit = 'flat';
-      if (speedPerH > 0 && rate > 0) { uRate = +(rate / speedPerH).toFixed(4); uQty = pieceQty; uUnit = 'ea'; }
+      if (speedPerH > 0 && hourly > 0) { uRate = +(hourly / speedPerH).toFixed(4); uQty = pieceQty; uUnit = 'ea'; }
       else if (unitCost > 0) { uRate = unitCost; uQty = pieceQty; uUnit = 'ea'; }
-      else if (minsPerUnit > 0 && rate > 0) { uRate = rate; uQty = +(minsPerUnit * pieceQty / 60).toFixed(4); uUnit = 'hr'; }
+      else if (minsPerUnit > 0 && hourly > 0) { uRate = hourly; uQty = +(minsPerUnit * pieceQty / 60).toFixed(4); uUnit = 'hr'; }
       item.kind = 'speed';
       item.cost_center_item_id = cc.id;
       item.material_id = null;
       item.preset_id = null;
       item.name = (cc.code ? cc.code + ' — ' : '') + cc.name;
-      item.setup = (setupMin > 0 && rate > 0) ? +(setupMin / 60 * rate).toFixed(2) : 0;
+      item.setup = (setupMin > 0 && hourly > 0) ? +(setupMin / 60 * hourly).toFixed(2) : 0;
       item.rate = uRate;
       item.qty = uQty;
       item.unit = uUnit;
@@ -1172,18 +1174,18 @@ window.applyRowMaterial = function(tabIdx, itemIdx, value) {
       item.method = 'per_sqft';
       item.rate = +(rate / speedPerH).toFixed(4);
       item.qty = lc.sqft > 0 ? Math.ceil(lc.sqft) : 1;
-    } else if (speedPerH > 0 && rate > 0) {
-      // Postpress run: rate per piece, qty = piece count
+    } else if (speedPerH > 0 && hourly > 0) {
+      // Postpress run: rate per piece = (AI + DM) $/hr ÷ pieces/hr; qty = piece count
       item.method = 'per_unit';
-      item.rate = +(rate / speedPerH).toFixed(4);
+      item.rate = +(hourly / speedPerH).toFixed(4);
       item.qty = pieceQty;
     } else if (unitCost > 0) {
       item.method = 'per_unit';
       item.rate = unitCost;
       item.qty = pieceQty;
-    } else if (minsPerUnit > 0 && rate > 0) {
+    } else if (minsPerUnit > 0 && hourly > 0) {
       item.method = 'per_hour';
-      item.rate = rate;
+      item.rate = hourly;
       item.qty = +(minsPerUnit * pieceQty / 60).toFixed(4);
     } else if (minCharge > 0) {
       item.method = 'flat';
@@ -1195,8 +1197,8 @@ window.applyRowMaterial = function(tabIdx, itemIdx, value) {
       item.qty = 1;
     }
     // Setup row when setup_min > 0
-    if (setupMin > 0 && rate > 0) {
-      var setupCost = +(setupMin / 60 * rate).toFixed(2);
+    if (setupMin > 0 && hourly > 0) {
+      var setupCost = +(setupMin / 60 * hourly).toFixed(2);
       var setupItem = {
         id: nid(),
         name: 'Setup — ' + (cc.code ? cc.code + ' ' : '') + cc.name,
