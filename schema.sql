@@ -281,6 +281,7 @@ CREATE TABLE IF NOT EXISTS cost_centers (
   kind       VARCHAR(40) NOT NULL,   -- e.g. prepress | press | postpress | digital
   code       VARCHAR(40) NOT NULL,
   name       VARCHAR(150) NOT NULL,
+  model      VARCHAR(20),                -- per-cost-center pricing model; NULL = use department default
   sort_order INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

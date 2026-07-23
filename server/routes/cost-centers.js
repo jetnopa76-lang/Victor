@@ -83,10 +83,10 @@ router.post('/', async (req, res) => {
 
 router.put('/:id', async (req, res) => {
   try {
-    const { kind, code, name, sort_order } = req.body;
+    const { kind, code, name, sort_order, model } = req.body;
     const { rows } = await db.query(
-      'UPDATE cost_centers SET kind=COALESCE($1,kind), code=COALESCE($2,code), name=COALESCE($3,name), sort_order=COALESCE($4,sort_order) WHERE id=$5 RETURNING *',
-      [kind, code, name, sort_order, req.params.id]);
+      'UPDATE cost_centers SET kind=COALESCE($1,kind), code=COALESCE($2,code), name=COALESCE($3,name), sort_order=COALESCE($4,sort_order), model=COALESCE($5,model) WHERE id=$6 RETURNING *',
+      [kind, code, name, sort_order, model, req.params.id]);
     if (!rows.length) return res.status(404).json({ error: 'Not found' });
     res.json(rows[0]);
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -109,9 +109,11 @@ router.get('/items', async (req, res) => {
     if (cost_center_id) { params.push(cost_center_id); conds.push('i.cost_center_id=$' + params.length); }
     const where = conds.length ? 'WHERE ' + conds.join(' AND ') : '';
     const { rows } = await db.query(
-      `SELECT i.*, c.kind AS cc_kind, c.code AS cc_code, c.name AS cc_name
+      `SELECT i.*, c.kind AS cc_kind, c.code AS cc_code, c.name AS cc_name,
+              COALESCE(c.model, d.model) AS cc_model
        FROM cost_center_items i
        JOIN cost_centers c ON c.id=i.cost_center_id
+       LEFT JOIN cost_center_departments d ON d.kind=c.kind
        ${where}
        ORDER BY c.kind, c.code, i.code, i.id`, params);
     res.json(rows);

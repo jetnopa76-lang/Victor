@@ -167,37 +167,42 @@ async function _rCC(){
   } else {
     var _ll='font-size:10px;color:#aaa;text-transform:uppercase;letter-spacing:.03em;margin-bottom:2px';
     var deptOpts=_CC_KINDS.map(function(d){return '<option value="'+_e(d.k)+'"'+(d.k===_cck?' selected':'')+'>'+_e(d.l)+'</option>';}).join('');
+    // Effective pricing model for this cost center (its own override, else the department default)
+    var effModel=(sel && sel.model) ? sel.model : deptModel;
+    var _MODELS=[['speed','Speed / Setup / AI $/h'],['sqft','Sq Ft $'],['press','Sq Ft / Ink (press)'],['digital','Click $ (digital)'],['unit','Unit $ (products)'],['prepress','Mins / Rates (prepress)'],['lamination','Labor $/sqft (lamination)']];
+    var modelOpts=_MODELS.map(function(m){return '<option value="'+m[0]+'"'+(m[0]===effModel?' selected':'')+'>'+m[1]+'</option>';}).join('');
     var hdr='<div style="margin-bottom:12px;padding:10px;background:#f9f8f6;border:1px solid #ececec;border-radius:8px">'
       +'<div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:8px">'
         +'<div><div style="'+_ll+'">Code</div><input value="'+_e(sel.code||'')+'" onchange="_uCC('+sel.id+',\'code\',this.value)" style="width:82px;font-family:monospace"></div>'
         +'<div style="flex:1"><div style="'+_ll+'">Cost center name</div><input value="'+_e(sel.name)+'" onchange="_uCC('+sel.id+',\'name\',this.value)" style="width:100%"></div>'
       +'</div>'
-      +'<div style="display:flex;gap:10px;align-items:flex-end">'
+      +'<div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">'
         +'<div><div style="'+_ll+'">Department</div><select onchange="_uCC('+sel.id+',\'kind\',this.value)">'+deptOpts+'</select></div>'
+        +'<div><div style="'+_ll+'">Pricing model</div><select onchange="_uCC('+sel.id+',\'model\',this.value)">'+modelOpts+'</select></div>'
         +'<div style="font-size:11px;color:#888;padding-bottom:6px">'+items.length+' process(es)</div>'
       +'</div>'
     +'</div>';
     procHTML+=hdr;
     var th='<span style="font-size:10px;color:#aaa;text-transform:uppercase">';
     if(items.length){
-      if(deptModel==='prepress'){
+      if(effModel==='prepress'){
         procHTML+='<div class="_lc" style="margin-bottom:8px"><div style="display:grid;grid-template-columns:60px 1fr 60px 60px 60px 60px 60px 24px;gap:5px;padding:6px 10px;border-bottom:1px solid #e8e6e2">'+th+'Code</span>'+th+'Name</span>'+th+'Mins/U</span>'+th+'AI $/h</span>'+th+'DM $/h</span>'+th+'Unit $</span>'+th+'Min $</span><span></span></div>'+items.map(function(x){return '<div class="_mr" style="grid-template-columns:60px 1fr 60px 60px 60px 60px 60px 24px"><input value="'+_e(x.code||'')+'" onchange="_uCCI('+x.id+',\'code\',this.value)"><input value="'+_e(x.name)+'" onchange="_uCCI('+x.id+',\'name\',this.value)"><input type="number" value="'+(parseFloat(x.mins_per_unit)||0).toFixed(2)+'" step="0.1" onchange="_uCCI('+x.id+',\'mins_per_unit\',this.value)"><input type="number" value="'+(parseFloat(x.ai_rate)||0).toFixed(2)+'" step="0.5" onchange="_uCCI('+x.id+',\'ai_rate\',this.value)"><input type="number" value="'+(parseFloat(x.dm_rate)||0).toFixed(2)+'" step="0.5" onchange="_uCCI('+x.id+',\'dm_rate\',this.value)"><input type="number" value="'+(parseFloat(x.unit_cost)||0).toFixed(2)+'" step="0.01" onchange="_uCCI('+x.id+',\'unit_cost\',this.value)"><input type="number" value="'+(parseFloat(x.min_charge)||0).toFixed(2)+'" step="0.5" onchange="_uCCI('+x.id+',\'min_charge\',this.value)"><button style="background:none;border:none;cursor:pointer;color:#ccc;font-size:15px;padding:0" onclick="_dCCI('+x.id+')">×</button></div>';}).join('')+'</div>';
-      }else if(deptModel==='press'){
+      }else if(effModel==='press'){
         // Press model: Setup Min (flat $) + Sq Ft / Ink CMYK / Ink White ($/sq ft) + Min $ (floor)
         procHTML+='<div class="_lc" style="margin-bottom:8px"><div style="display:grid;grid-template-columns:60px 1fr 66px 66px 72px 72px 60px 24px;gap:5px;padding:6px 10px;border-bottom:1px solid #e8e6e2">'+th+'Code</span>'+th+'Name</span>'+th+'Setup $</span>'+th+'Sq Ft</span>'+th+'Ink CMYK</span>'+th+'Ink White</span>'+th+'Min $</span><span></span></div>'+items.map(function(x){return '<div class="_mr" style="grid-template-columns:60px 1fr 66px 66px 72px 72px 60px 24px"><input value="'+_e(x.code||'')+'" onchange="_uCCI('+x.id+',\'code\',this.value)"><input value="'+_e(x.name)+'" onchange="_uCCI('+x.id+',\'name\',this.value)"><input type="number" value="'+(parseFloat(x.setup_min)||0).toFixed(2)+'" step="0.01" onchange="_uCCI('+x.id+',\'setup_min\',this.value)"><input type="number" value="'+(parseFloat(x.sqft_rate)||0).toFixed(4)+'" step="0.0001" onchange="_uCCI('+x.id+',\'sqft_rate\',this.value)"><input type="number" value="'+(parseFloat(x.ink_cmyk)||0).toFixed(4)+'" step="0.0001" onchange="_uCCI('+x.id+',\'ink_cmyk\',this.value)"><input type="number" value="'+(parseFloat(x.ink_white)||0).toFixed(4)+'" step="0.0001" onchange="_uCCI('+x.id+',\'ink_white\',this.value)"><input type="number" value="'+(parseFloat(x.min_charge)||0).toFixed(2)+'" step="0.5" onchange="_uCCI('+x.id+',\'min_charge\',this.value)"><button style="background:none;border:none;cursor:pointer;color:#ccc;font-size:15px;padding:0" onclick="_dCCI('+x.id+')">×</button></div>';}).join('')+'</div>';
-      }else if(deptModel==='digital'){
+      }else if(effModel==='digital'){
         // Digital press model: Click $ (per sheet) + Setup Min (costed at AI $/h)
         procHTML+='<div class="_lc" style="margin-bottom:8px"><div style="display:grid;grid-template-columns:60px 1fr 80px 70px 70px 24px;gap:5px;padding:6px 10px;border-bottom:1px solid #e8e6e2">'+th+'Code</span>'+th+'Name</span>'+th+'Click $</span>'+th+'Setup Min</span>'+th+'AI $/h</span><span></span></div>'+items.map(function(x){return '<div class="_mr" style="grid-template-columns:60px 1fr 80px 70px 70px 24px"><input value="'+_e(x.code||'')+'" onchange="_uCCI('+x.id+',\'code\',this.value)"><input value="'+_e(x.name)+'" onchange="_uCCI('+x.id+',\'name\',this.value)"><input type="number" value="'+(parseFloat(x.unit_cost)||0).toFixed(4)+'" step="0.0001" onchange="_uCCI('+x.id+',\'unit_cost\',this.value)"><input type="number" value="'+(parseFloat(x.setup_min)||0).toFixed(0)+'" step="1" onchange="_uCCI('+x.id+',\'setup_min\',this.value)"><input type="number" value="'+(parseFloat(x.ai_rate)||0).toFixed(2)+'" step="0.5" onchange="_uCCI('+x.id+',\'ai_rate\',this.value)"><button style="background:none;border:none;cursor:pointer;color:#ccc;font-size:15px;padding:0" onclick="_dCCI('+x.id+')">×</button></div>';}).join('')+'</div>';
-      }else if(deptModel==='lamination'){
+      }else if(effModel==='lamination'){
         // Lamination model: Labor $/sq ft (+ Min $). The film itself is picked
         // per-estimate from the "Wide Format / Lamination" material catalog.
         procHTML+='<div style="font-size:11px;color:#888;margin:-4px 0 8px">Labor only — the laminate film is picked from the material catalog on each estimate.</div>';
         procHTML+='<div class="_lc" style="margin-bottom:8px"><div style="display:grid;grid-template-columns:60px 1fr 90px 60px 24px;gap:5px;padding:6px 10px;border-bottom:1px solid #e8e6e2">'+th+'Code</span>'+th+'Name</span>'+th+'Labor $/sqft</span>'+th+'Min $</span><span></span></div>'+items.map(function(x){return '<div class="_mr" style="grid-template-columns:60px 1fr 90px 60px 24px"><input value="'+_e(x.code||'')+'" onchange="_uCCI('+x.id+',\'code\',this.value)"><input value="'+_e(x.name)+'" onchange="_uCCI('+x.id+',\'name\',this.value)"><input type="number" value="'+(parseFloat(x.sqft_rate)||0).toFixed(4)+'" step="0.0001" onchange="_uCCI('+x.id+',\'sqft_rate\',this.value)"><input type="number" value="'+(parseFloat(x.min_charge)||0).toFixed(2)+'" step="0.5" onchange="_uCCI('+x.id+',\'min_charge\',this.value)"><button style="background:none;border:none;cursor:pointer;color:#ccc;font-size:15px;padding:0" onclick="_dCCI('+x.id+')">×</button></div>';}).join('')+'</div>';
-      }else if(deptModel==='sqft'){
+      }else if(effModel==='sqft'){
         // Per-square-foot model (e.g. Cutting): Sq Ft $ + Setup $ (+ Min $). Priced $/sqft × job area on the estimate.
         procHTML+='<div style="font-size:11px;color:#888;margin:-4px 0 8px">Per-sq-ft — priced Sq Ft $ × job area (+ setup), floored at the minimum.</div>';
         procHTML+='<div class="_lc" style="margin-bottom:8px"><div style="display:grid;grid-template-columns:70px 1fr 80px 70px 60px 24px;gap:5px;padding:6px 10px;border-bottom:1px solid #e8e6e2">'+th+'Code</span>'+th+'Name</span>'+th+'Sq Ft $</span>'+th+'Setup $</span>'+th+'Min $</span><span></span></div>'+items.map(function(x){return '<div class="_mr" style="grid-template-columns:70px 1fr 80px 70px 60px 24px"><input value="'+_e(x.code||'')+'" onchange="_uCCI('+x.id+',\'code\',this.value)"><input value="'+_e(x.name)+'" onchange="_uCCI('+x.id+',\'name\',this.value)"><input type="number" value="'+(parseFloat(x.sqft_rate)||0).toFixed(4)+'" step="0.0001" onchange="_uCCI('+x.id+',\'sqft_rate\',this.value)"><input type="number" value="'+(parseFloat(x.setup_min)||0).toFixed(2)+'" step="0.01" onchange="_uCCI('+x.id+',\'setup_min\',this.value)"><input type="number" value="'+(parseFloat(x.min_charge)||0).toFixed(2)+'" step="0.5" onchange="_uCCI('+x.id+',\'min_charge\',this.value)"><button style="background:none;border:none;cursor:pointer;color:#ccc;font-size:15px;padding:0" onclick="_dCCI('+x.id+')">×</button></div>';}).join('')+'</div>';
-      }else if(deptModel==='unit'){
+      }else if(effModel==='unit'){
         // Unit-cost products (e.g. Hardware): Code, Name, Unit $ (+ Min $). Priced per unit × qty on the estimate.
         procHTML+='<div style="font-size:11px;color:#888;margin:-4px 0 8px">Per-unit products — priced Unit $ × quantity on each estimate.</div>';
         procHTML+='<div class="_lc" style="margin-bottom:8px"><div style="display:grid;grid-template-columns:80px 1fr 90px 60px 24px;gap:5px;padding:6px 10px;border-bottom:1px solid #e8e6e2">'+th+'Code</span>'+th+'Name</span>'+th+'Unit $</span>'+th+'Min $</span><span></span></div>'+items.map(function(x){return '<div class="_mr" style="grid-template-columns:80px 1fr 90px 60px 24px"><input value="'+_e(x.code||'')+'" onchange="_uCCI('+x.id+',\'code\',this.value)"><input value="'+_e(x.name)+'" onchange="_uCCI('+x.id+',\'name\',this.value)"><input type="number" value="'+(parseFloat(x.unit_cost)||0).toFixed(2)+'" step="0.01" onchange="_uCCI('+x.id+',\'unit_cost\',this.value)"><input type="number" value="'+(parseFloat(x.min_charge)||0).toFixed(2)+'" step="0.5" onchange="_uCCI('+x.id+',\'min_charge\',this.value)"><button style="background:none;border:none;cursor:pointer;color:#ccc;font-size:15px;padding:0" onclick="_dCCI('+x.id+')">×</button></div>';}).join('')+'</div>';
@@ -234,7 +239,7 @@ function _sCC(id){_cccid=id;_rCC();}
 async function _aCC(){var code=prompt('Cost center code (e.g. 5400):');if(!code)return;var name=prompt('Cost center name:');if(!name)return;var c=await _a('POST','/api/cost-centers',{kind:_cck,code:code,name:name});_cccid=c.id;_rCC();}
 async function _dCC(id){if(!confirm('Delete cost center and all its processes?'))return;await _a('DELETE','/api/cost-centers/'+id);_cccid=null;_rCC();}
 async function _uCC(id,f,v){
-  var b={}; b[f]=(f==='kind'||f==='code'||f==='name')?v:(parseFloat(v)||0);
+  var b={}; b[f]=(f==='kind'||f==='code'||f==='name'||f==='model')?v:(parseFloat(v)||0);
   var r=await _a('PUT','/api/cost-centers/'+id,b);
   if(r&&r.error){alert(r.error);return;}
   if(f==='kind'){_cck=v;} // follow the cost center into its new department

@@ -788,8 +788,7 @@ var TAB_LIBRARY_MAP = [
   { match: /pre\s*press|prepress/i, cost_center_kind: 'prepress', label: 'Prepress' },
   { match: /digital/i, cost_center_kind: 'digital', label: 'Digital Press' },
   { match: /lamination/i, cost_center_kind: 'lamination', categories: ['Wide Format / Lamination'], label: 'Lamination' },
-  { match: /flatbed|wide\s*format\s*cut/i, cost_center_kind: 'flatbed', label: 'Wide Format Cutting' },
-  { match: /cutting|trimming|cutter/i, cost_center_kind: 'cutting', label: 'Digital Cutting' },
+  { match: /cutting|trimming|cutter|flatbed/i, cost_center_kind: 'cutting', label: 'Cutting' },
   { match: /installation/i, cost_center_kind: 'installation', label: 'Installation' },
   { match: /fulfill?ment/i, cost_center_kind: 'fulfillment', label: 'Fulfillment' },
   { match: /shipping|delivery/i, cost_center_kind: 'shipping', label: 'Shipping' },
@@ -870,21 +869,21 @@ function buildProcessDropdownOptions(ccId, kind) {
   if (!cachedCostCenterItems) return '<option value="">Loading…</option>';
   var items = cachedCostCenterItems.filter(function(x){ return String(x.cost_center_id) === String(ccId); });
   if (!items.length) return '<option value="">No processes</option>';
-  var isPress = kind === 'press';
   var html = '<option value="">— Select process —</option>';
   items.forEach(function(x){
+    var m = x.cc_model || deptModelForKind(kind); // per-cost-center pricing model
     var label;
-    if (isPress) {
+    if (m === 'press') {
       var rate = parseFloat(x.sqft_rate||0) + parseFloat(x.ink_cmyk||0); // base + CMYK $/sqft (white optional)
       var modeLabel = x.name.indexOf(x.cc_name + ' — ') === 0 ? x.name.substring(x.cc_name.length + 3) : x.name;
       label = modeLabel + ' · $' + rate.toFixed(4) + '/sqft';
-    } else if (kind === 'digital') {
+    } else if (m === 'digital') {
       label = x.name + ' · $' + (parseFloat(x.unit_cost)||0).toFixed(4) + '/click';
-    } else if (kind === 'lamination') {
+    } else if (m === 'lamination') {
       label = x.name + ' · $' + (parseFloat(x.sqft_rate||0)).toFixed(4) + '/sqft labor';
-    } else if (kind === 'bindery') {
+    } else if (m === 'unit') {
       label = (x.code ? x.code + ' — ' : '') + x.name + ' · $' + (parseFloat(x.unit_cost)||0).toFixed(2) + '/ea';
-    } else if (deptModelForKind(kind) === 'sqft') {
+    } else if (m === 'sqft') {
       label = (x.code ? x.code + ' — ' : '') + x.name + ' · $' + (parseFloat(x.sqft_rate)||0).toFixed(4) + '/sqft';
     } else {
       label = (x.code ? x.code + ' — ' : '') + x.name;
@@ -988,20 +987,21 @@ function buildRowMaterialOptions(lib, item) {
           html += '<optgroup label="' + escHtml(g) + '">';
           groups[g].forEach(function(x){
             var sel = item && item.cost_center_item_id == x.id ? ' selected' : '';
+            var m = x.cc_model || deptModelForKind(lib.cost_center_kind); // per-cost-center model
             var label;
-            if (isPress) {
+            if (m === 'press') {
               // For press, show "<mode> — $X.XXXX/sqft" (base + CMYK; white optional)
               var rate = parseFloat(x.sqft_rate||0) + parseFloat(x.ink_cmyk||0);
               // Strip the press name from item name to keep just the mode
               var modeLabel = x.name.indexOf(x.cc_name + ' — ') === 0 ? x.name.substring(x.cc_name.length + 3) : x.name;
               label = modeLabel + ' · $' + rate.toFixed(4) + '/sqft';
-            } else if (lib.cost_center_kind === 'digital') {
+            } else if (m === 'digital') {
               label = (x.name || '') + ' · $' + (parseFloat(x.unit_cost)||0).toFixed(4) + '/click';
-            } else if (lib.cost_center_kind === 'lamination') {
+            } else if (m === 'lamination') {
               label = (x.name || '') + ' · $' + (parseFloat(x.sqft_rate||0)).toFixed(4) + '/sqft labor';
-            } else if (lib.cost_center_kind === 'bindery') {
+            } else if (m === 'unit') {
               label = (x.code ? x.code + ' — ' : '') + (x.name || '') + ' · $' + (parseFloat(x.unit_cost)||0).toFixed(2) + '/ea';
-            } else if (deptModelForKind(lib.cost_center_kind) === 'sqft') {
+            } else if (m === 'sqft') {
               label = (x.code ? x.code + ' — ' : '') + (x.name || '') + ' · $' + (parseFloat(x.sqft_rate)||0).toFixed(4) + '/sqft';
             } else {
               label = (x.code ? x.code + ' — ' : '') + (x.name || '');
@@ -1069,7 +1069,9 @@ window.applyRowMaterial = function(tabIdx, itemIdx, value) {
     var speedPerH = parseFloat(cc.speed_per_h) || 0;
     var setupMin = parseFloat(cc.setup_min) || 0;
     var minCharge = parseFloat(cc.min_charge) || 0;
-    var isPress = cc.cc_kind === 'press';
+    // Pricing model is per cost center (falls back to the department default).
+    var ccModel = cc.cc_model || deptModelForKind(cc.cc_kind);
+    var isPress = ccModel === 'press';
     if (isPress) {
       // New press model: flat Setup + ($/sqft base + CMYK + optional White).
       item.kind = 'press';
@@ -1087,7 +1089,7 @@ window.applyRowMaterial = function(tabIdx, itemIdx, value) {
       renderCompEditor();
       return;
     }
-    if (cc.cc_kind === 'digital') {
+    if (ccModel === 'digital') {
       // Digital press: Click $ per sheet + setup (minutes × AI $/hr).
       item.kind = 'digital';
       item.cost_center_item_id = cc.id;
@@ -1101,7 +1103,7 @@ window.applyRowMaterial = function(tabIdx, itemIdx, value) {
       renderCompEditor();
       return;
     }
-    if (cc.cc_kind === 'lamination') {
+    if (ccModel === 'lamination') {
       // Lamination labor: Labor $/sqft, floored at min charge. The film is
       // picked separately from the lamination material catalog.
       item.kind = 'lamination';
@@ -1115,7 +1117,7 @@ window.applyRowMaterial = function(tabIdx, itemIdx, value) {
       renderCompEditor();
       return;
     }
-    if (deptModelForKind(cc.cc_kind) === 'sqft') {
+    if (ccModel === 'sqft') {
       // Per-square-foot process (e.g. cutting): Setup $ + Sq Ft $ × area, floored at min.
       item.kind = 'sqft';
       item.cost_center_item_id = cc.id;
@@ -1335,8 +1337,7 @@ function renderProcessTab(c, idx) {
     var deptLabel = lib.cost_center_kind === 'press' ? 'Press' :
                     lib.cost_center_kind === 'digital' ? 'Digital Press' :
                     lib.cost_center_kind === 'lamination' ? 'Lamination' :
-                    lib.cost_center_kind === 'cutting' ? 'Digital Cutting' :
-                    lib.cost_center_kind === 'flatbed' ? 'Wide Format Cutting' :
+                    lib.cost_center_kind === 'cutting' ? 'Cutting' :
                     lib.cost_center_kind === 'installation' ? 'Installation' :
                     lib.cost_center_kind === 'fulfillment' ? 'Fulfillment' :
                     lib.cost_center_kind === 'shipping' ? 'Shipping' :
