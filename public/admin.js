@@ -193,6 +193,10 @@ async function _rCC(){
         // per-estimate from the "Wide Format / Lamination" material catalog.
         procHTML+='<div style="font-size:11px;color:#888;margin:-4px 0 8px">Labor only — the laminate film is picked from the material catalog on each estimate.</div>';
         procHTML+='<div class="_lc" style="margin-bottom:8px"><div style="display:grid;grid-template-columns:60px 1fr 90px 60px 24px;gap:5px;padding:6px 10px;border-bottom:1px solid #e8e6e2">'+th+'Code</span>'+th+'Name</span>'+th+'Labor $/sqft</span>'+th+'Min $</span><span></span></div>'+items.map(function(x){return '<div class="_mr" style="grid-template-columns:60px 1fr 90px 60px 24px"><input value="'+_e(x.code||'')+'" onchange="_uCCI('+x.id+',\'code\',this.value)"><input value="'+_e(x.name)+'" onchange="_uCCI('+x.id+',\'name\',this.value)"><input type="number" value="'+(parseFloat(x.sqft_rate)||0).toFixed(4)+'" step="0.0001" onchange="_uCCI('+x.id+',\'sqft_rate\',this.value)"><input type="number" value="'+(parseFloat(x.min_charge)||0).toFixed(2)+'" step="0.5" onchange="_uCCI('+x.id+',\'min_charge\',this.value)"><button style="background:none;border:none;cursor:pointer;color:#ccc;font-size:15px;padding:0" onclick="_dCCI('+x.id+')">×</button></div>';}).join('')+'</div>';
+      }else if(deptModel==='sqft'){
+        // Per-square-foot model (e.g. Cutting): Sq Ft $ + Setup $ (+ Min $). Priced $/sqft × job area on the estimate.
+        procHTML+='<div style="font-size:11px;color:#888;margin:-4px 0 8px">Per-sq-ft — priced Sq Ft $ × job area (+ setup), floored at the minimum.</div>';
+        procHTML+='<div class="_lc" style="margin-bottom:8px"><div style="display:grid;grid-template-columns:70px 1fr 80px 70px 60px 24px;gap:5px;padding:6px 10px;border-bottom:1px solid #e8e6e2">'+th+'Code</span>'+th+'Name</span>'+th+'Sq Ft $</span>'+th+'Setup $</span>'+th+'Min $</span><span></span></div>'+items.map(function(x){return '<div class="_mr" style="grid-template-columns:70px 1fr 80px 70px 60px 24px"><input value="'+_e(x.code||'')+'" onchange="_uCCI('+x.id+',\'code\',this.value)"><input value="'+_e(x.name)+'" onchange="_uCCI('+x.id+',\'name\',this.value)"><input type="number" value="'+(parseFloat(x.sqft_rate)||0).toFixed(4)+'" step="0.0001" onchange="_uCCI('+x.id+',\'sqft_rate\',this.value)"><input type="number" value="'+(parseFloat(x.setup_min)||0).toFixed(2)+'" step="0.01" onchange="_uCCI('+x.id+',\'setup_min\',this.value)"><input type="number" value="'+(parseFloat(x.min_charge)||0).toFixed(2)+'" step="0.5" onchange="_uCCI('+x.id+',\'min_charge\',this.value)"><button style="background:none;border:none;cursor:pointer;color:#ccc;font-size:15px;padding:0" onclick="_dCCI('+x.id+')">×</button></div>';}).join('')+'</div>';
       }else if(deptModel==='unit'){
         // Unit-cost products (e.g. Hardware): Code, Name, Unit $ (+ Min $). Priced per unit × qty on the estimate.
         procHTML+='<div style="font-size:11px;color:#888;margin:-4px 0 8px">Per-unit products — priced Unit $ × quantity on each estimate.</div>';
@@ -212,8 +216,8 @@ async function _rCC(){
 function _sCCK(k){_cck=k;_cccid=null;_rCC();}
 async function _aCCDept(){
   var name=prompt('New department name (e.g. Large Format):'); if(!name||!name.trim())return;
-  var mm={'1':'speed','2':'digital','3':'press','4':'prepress','5':'unit'};
-  var mk=prompt('Pricing model for this department:\n\n1 = Speed / Setup / AI $/h / DM $/h  (most presses & finishing)\n2 = Click $ / Setup  (digital press)\n3 = Sq Ft / Ink  (wide-format press)\n4 = Mins / Rates  (prepress)\n5 = Unit $  (per-unit products / hardware)','1');
+  var mm={'1':'speed','2':'digital','3':'press','4':'prepress','5':'unit','6':'sqft'};
+  var mk=prompt('Pricing model for this department:\n\n1 = Speed / Setup / AI $/h / DM $/h  (most presses & finishing)\n2 = Click $ / Setup  (digital press)\n3 = Sq Ft / Ink  (wide-format press)\n4 = Mins / Rates  (prepress)\n5 = Unit $  (per-unit products / hardware)\n6 = Sq Ft $  (per-sq-ft, e.g. cutting)','1');
   if(mk===null)return;
   var model=mm[(mk||'1').trim()]||'speed';
   var r=await _a('POST','/api/cost-centers/departments',{label:name.trim(),model:model});

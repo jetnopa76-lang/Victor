@@ -56,6 +56,12 @@ function loadDepartments() {
     .catch(function(){ departmentsLoading = false; cachedDepartments = []; });
 }
 
+// The pricing model for a department kind (e.g. 'sqft' for Cutting).
+function deptModelForKind(kind) {
+  var d = (cachedDepartments || []).find(function(x){ return x.kind === kind; });
+  return d ? d.model : null;
+}
+
 var cachedVendors = null, vendorsLoading = false;
 function loadVendors() {
   if (cachedVendors || vendorsLoading) return;
@@ -207,6 +213,12 @@ function calcItemTotal(item, sqft, sheets) {
     var pressTotal = parseFloat(item.setup||0) + perSqft * area;
     var minC = parseFloat(item.min_charge||0);
     return minC > 0 ? Math.max(pressTotal, minC) : pressTotal; // apply minimum-charge floor
+  }
+  if (item && item.kind === 'sqft') {
+    // Per-square-foot process (e.g. cutting): Setup $ + Sq Ft $ × area, floored at min.
+    var sqTotal = parseFloat(item.setup||0) + parseFloat(item.sqft_rate||0) * parseFloat(sqft || 0);
+    var sqMin = parseFloat(item.min_charge||0);
+    return sqMin > 0 ? Math.max(sqTotal, sqMin) : sqTotal;
   }
   if (item && item.kind === 'digital') {
     // Click $ per sheet + setup (minutes × AI $/hr).
@@ -531,7 +543,10 @@ window.getComponentsItemized = function() {
         if (Math.abs(v) < 0.001) return;
         var label = (it.name && it.name.trim()) ? it.name : t.name;
         var detail = t.name;
-        if (it.kind === 'press') {
+        if (it.kind === 'sqft') {
+          detail = t.name + ' · $' + parseFloat(it.sqft_rate||0).toFixed(4) + '/sqft × ' + Math.round(lc.sqft) +
+                   (parseFloat(it.setup||0) > 0 ? ' + $' + parseFloat(it.setup).toFixed(2) + ' setup' : '');
+        } else if (it.kind === 'press') {
           var per = parseFloat(it.sqft_rate||0) + parseFloat(it.ink_cmyk||0) + (it.white ? parseFloat(it.ink_white||0) : 0);
           detail = t.name + ' · $' + per.toFixed(4) + '/sqft × ' + Math.round(lc.sqft) +
                    (parseFloat(it.setup||0) > 0 ? ' + $' + parseFloat(it.setup).toFixed(2) + ' setup' : '') +
@@ -868,6 +883,8 @@ function buildProcessDropdownOptions(ccId, kind) {
       label = x.name + ' · $' + (parseFloat(x.sqft_rate||0)).toFixed(4) + '/sqft labor';
     } else if (kind === 'bindery') {
       label = (x.code ? x.code + ' — ' : '') + x.name + ' · $' + (parseFloat(x.unit_cost)||0).toFixed(2) + '/ea';
+    } else if (deptModelForKind(kind) === 'sqft') {
+      label = (x.code ? x.code + ' — ' : '') + x.name + ' · $' + (parseFloat(x.sqft_rate)||0).toFixed(4) + '/sqft';
     } else {
       label = (x.code ? x.code + ' — ' : '') + x.name;
     }
@@ -983,6 +1000,8 @@ function buildRowMaterialOptions(lib, item) {
               label = (x.name || '') + ' · $' + (parseFloat(x.sqft_rate||0)).toFixed(4) + '/sqft labor';
             } else if (lib.cost_center_kind === 'bindery') {
               label = (x.code ? x.code + ' — ' : '') + (x.name || '') + ' · $' + (parseFloat(x.unit_cost)||0).toFixed(2) + '/ea';
+            } else if (deptModelForKind(lib.cost_center_kind) === 'sqft') {
+              label = (x.code ? x.code + ' — ' : '') + (x.name || '') + ' · $' + (parseFloat(x.sqft_rate)||0).toFixed(4) + '/sqft';
             } else {
               label = (x.code ? x.code + ' — ' : '') + (x.name || '');
             }
@@ -1095,6 +1114,20 @@ window.applyRowMaterial = function(tabIdx, itemIdx, value) {
       renderCompEditor();
       return;
     }
+    if (deptModelForKind(cc.cc_kind) === 'sqft') {
+      // Per-square-foot process (e.g. cutting): Setup $ + Sq Ft $ × area, floored at min.
+      item.kind = 'sqft';
+      item.cost_center_item_id = cc.id;
+      item.material_id = null;
+      item.preset_id = null;
+      item.name = (cc.code ? cc.code + ' — ' : '') + cc.name;
+      item.setup = parseFloat(cc.setup_min) || 0;
+      item.sqft_rate = parseFloat(cc.sqft_rate) || 0;
+      item.min_charge = parseFloat(cc.min_charge) || 0;
+      delete item.method; delete item.rate; delete item.qty;
+      renderCompEditor();
+      return;
+    }
     item.cost_center_item_id = cc.id;
     item.material_id = null;
     item.preset_id = null;
@@ -1188,7 +1221,7 @@ function renderProcessTab(c, idx) {
   if (tab.items.length) {
     // Press/digital/lamination render as self-labelled boxes; the grid header
     // only makes sense when at least one plain grid row is present.
-    var hasGridRow = tab.items.some(function(it){ return it.kind !== 'press' && it.kind !== 'digital' && it.kind !== 'lamination' && it.kind !== 'outside'; });
+    var hasGridRow = tab.items.some(function(it){ return it.kind !== 'press' && it.kind !== 'digital' && it.kind !== 'lamination' && it.kind !== 'outside' && it.kind !== 'sqft'; });
     var headerCols = hasLib
       ? '<span>Process name</span><span>Material</span><span>Method</span><span>Rate ($)</span><span>Qty</span><span style="text-align:right">Total</span><span></span>'
       : '<span>Process / item</span><span>Method</span><span>Rate ($)</span><span>Qty</span><span style="text-align:right">Total</span><span></span>';
@@ -1239,6 +1272,20 @@ function renderProcessTab(c, idx) {
           of('Unit $', 'unit_cost', item.unit_cost, 74, 2, '0.01') +
           of('Markup %', 'markup', item.markup, 66, 0, '1') +
           '<div style="text-align:right;min-width:86px"><div class="lbl">Total</div><div class="row-total" style="font-weight:600">$' + oTotal.toFixed(2) + '</div><div style="font-size:10px;color:#aaa">' + (oBase > 0 ? ('$' + oBase.toFixed(2) + ' cost' + (oMk > 0 ? ' + ' + oMk + '%' : '')) : 'set qty & cost') + '</div></div>' +
+          '<button class="del-btn" onclick="deleteItem(' + idx + ',' + i + ')">×</button>' +
+        '</div>';
+        return;
+      }
+      if (item.kind === 'sqft') {
+        var sqTotal = calcItemTotal(item, sqft, sheets);
+        var sqMinHit = parseFloat(item.min_charge||0) > sqTotal - 0.005 && parseFloat(item.min_charge||0) > 0;
+        var qf = function(label, key, val, w, dec){ return '<div><div class="lbl">' + label + '</div><input type="number" step="' + (dec===2?'0.01':'0.0001') + '" value="' + (parseFloat(val||0)).toFixed(dec) + '" onchange="updatePressField(' + idx + ',' + i + ',\'' + key + '\',this.value)" style="width:' + w + 'px;text-align:right"></div>'; };
+        rowsHTML += '<div style="grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px;padding:9px 10px;border:1px solid #e8e6e2;border-radius:8px;margin-bottom:6px;background:#fafafa">' +
+          '<div style="flex:1;min-width:150px"><div class="lbl">Process</div><input value="' + escHtml(item.name||'') + '" onchange="updatePressField(' + idx + ',' + i + ',\'name\',this.value)" style="width:100%"></div>' +
+          qf('Setup $', 'setup', item.setup, 70, 2) +
+          qf('Sq Ft $', 'sqft_rate', item.sqft_rate, 78, 4) +
+          qf('Min $', 'min_charge', item.min_charge, 60, 2) +
+          '<div style="text-align:right;min-width:86px"><div class="lbl">Total</div><div class="row-total" style="font-weight:600">$' + sqTotal.toFixed(2) + '</div><div style="font-size:10px;color:#aaa">' + (sqMinHit ? '$'+parseFloat(item.min_charge).toFixed(2)+' minimum' : (sqft>0 ? ('$'+parseFloat(item.sqft_rate||0).toFixed(4)+'/sqft × '+Math.round(sqft)+(parseFloat(item.setup||0)>0?' + $'+parseFloat(item.setup).toFixed(2)+' setup':'')) : 'set layout sq ft')) + '</div></div>' +
           '<button class="del-btn" onclick="deleteItem(' + idx + ',' + i + ')">×</button>' +
         '</div>';
         return;
