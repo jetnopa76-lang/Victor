@@ -788,8 +788,8 @@ var TAB_LIBRARY_MAP = [
   { match: /pre\s*press|prepress/i, cost_center_kind: 'prepress', label: 'Prepress' },
   { match: /digital/i, cost_center_kind: 'digital', label: 'Digital Press' },
   { match: /lamination/i, cost_center_kind: 'lamination', categories: ['Wide Format / Lamination'], label: 'Lamination' },
-  { match: /flatbed/i, cost_center_kind: 'flatbed', label: 'Flatbed' },
-  { match: /cutting|trimming|cutter/i, cost_center_kind: 'cutting', label: 'Cutting' },
+  { match: /flatbed|wide\s*format\s*cut/i, cost_center_kind: 'flatbed', label: 'Wide Format Cutting' },
+  { match: /cutting|trimming|cutter/i, cost_center_kind: 'cutting', label: 'Digital Cutting' },
   { match: /installation/i, cost_center_kind: 'installation', label: 'Installation' },
   { match: /fulfill?ment/i, cost_center_kind: 'fulfillment', label: 'Fulfillment' },
   { match: /shipping|delivery/i, cost_center_kind: 'shipping', label: 'Shipping' },
@@ -1335,8 +1335,8 @@ function renderProcessTab(c, idx) {
     var deptLabel = lib.cost_center_kind === 'press' ? 'Press' :
                     lib.cost_center_kind === 'digital' ? 'Digital Press' :
                     lib.cost_center_kind === 'lamination' ? 'Lamination' :
-                    lib.cost_center_kind === 'cutting' ? 'Cutting' :
-                    lib.cost_center_kind === 'flatbed' ? 'Flatbed' :
+                    lib.cost_center_kind === 'cutting' ? 'Digital Cutting' :
+                    lib.cost_center_kind === 'flatbed' ? 'Wide Format Cutting' :
                     lib.cost_center_kind === 'installation' ? 'Installation' :
                     lib.cost_center_kind === 'fulfillment' ? 'Fulfillment' :
                     lib.cost_center_kind === 'shipping' ? 'Shipping' :
