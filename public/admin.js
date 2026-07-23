@@ -261,11 +261,11 @@ async function _rStages(){
 function _renderStages(){
   var rows=_stages.map(function(x,i){
     var up=i===0?' disabled style="opacity:.3"':'', dn=i===_stages.length-1?' disabled style="opacity:.3"':'';
-    return '<div class="_li" draggable="true" ondragstart="_stDrag(event,'+i+')" ondragover="event.preventDefault()" ondrop="_stDrop(event,'+i+')" ondragend="_dragStage=null" style="cursor:grab">'+
-      '<span style="color:#c9c6c0;font-size:15px;margin-right:8px;cursor:grab" title="Drag to reorder">⠿</span>'+
-      '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:'+(x.color||'#888')+';margin-right:9px;flex-shrink:0"></span>'+
-      '<div class="_ln">'+_e(x.name)+'</div>'+
-      '<button class="_btnG" style="font-size:13px;padding:2px 8px;margin-right:4px" onclick="_stMove('+i+',-1)"'+up+'>▲</button>'+
+    return '<div class="_li" ondragover="event.preventDefault()" ondrop="_stDrop(event,'+i+')">'+
+      '<span draggable="true" ondragstart="_stDrag(event,'+i+')" ondragend="_dragStage=null" style="color:#c9c6c0;font-size:15px;margin-right:8px;cursor:grab" title="Drag to reorder">⠿</span>'+
+      '<input type="color" value="'+(x.color||'#888780')+'" onchange="_uStage('+x.id+',\'color\',this.value)" title="Stage color" style="width:26px;height:26px;border:1px solid #e0ded8;border-radius:6px;background:none;padding:0;margin-right:9px;flex-shrink:0;cursor:pointer">'+
+      '<input class="_ln" value="'+_e(x.name)+'" onchange="_uStage('+x.id+',\'name\',this.value)" style="flex:1;height:30px;border:1px solid #e0ded8;border-radius:6px;padding:0 8px;font-size:13px;font-weight:500;outline:none">'+
+      '<button class="_btnG" style="font-size:13px;padding:2px 8px;margin:0 4px 0 8px" onclick="_stMove('+i+',-1)"'+up+'>▲</button>'+
       '<button class="_btnG" style="font-size:13px;padding:2px 8px;margin-right:6px" onclick="_stMove('+i+',1)"'+dn+'>▼</button>'+
       '<button class="_btnD" onclick="_dStage('+x.id+')">Delete</button></div>';
   }).join('');
@@ -292,6 +292,7 @@ async function _persistStageOrder(){
   for(var i=0;i<_stages.length;i++){ _stages[i].position=i; await _a('PUT','/api/orders/stages/'+_stages[i].id,{position:i}); }
   if(typeof toast==='function')toast('Stage order saved');
 }
+async function _uStage(id,f,v){var b={};b[f]=v;var r=await _a('PUT','/api/orders/stages/'+id,b);if(r&&r.error){alert(r.error);return;}var s=_stages.find(function(x){return x.id===id;});if(s)s[f]=v;if(typeof toast==='function')toast('Stage updated');}
 async function _aStage(){var n=document.getElementById('_ns').value.trim();if(!n)return;await _a('POST','/api/orders/stages',{name:n});_rStages();}
 async function _dStage(id){if(!confirm('Delete?'))return;await _a('DELETE','/api/orders/stages/'+id);_rStages();}
 
