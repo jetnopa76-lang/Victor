@@ -220,6 +220,12 @@ function calcItemTotal(item, sqft, sheets) {
     var sqMin = parseFloat(item.min_charge||0);
     return sqMin > 0 ? Math.max(sqTotal, sqMin) : sqTotal;
   }
+  if (item && item.kind === 'speed') {
+    // Speed/setup process (e.g. digital cutting, finishing): Setup $ + Rate $ × qty, floored at min.
+    var spTotal = parseFloat(item.setup||0) + parseFloat(item.rate||0) * parseFloat(item.qty||0);
+    var spMin = parseFloat(item.min_charge||0);
+    return spMin > 0 ? Math.max(spTotal, spMin) : spTotal;
+  }
   if (item && item.kind === 'digital') {
     // Click $ per sheet + setup (minutes × AI $/hr).
     var run = parseFloat(item.click||0) * parseFloat(sheets||0);
@@ -545,6 +551,10 @@ window.getComponentsItemized = function() {
         var detail = t.name;
         if (it.kind === 'sqft') {
           detail = t.name + ' · $' + parseFloat(it.sqft_rate||0).toFixed(4) + '/sqft × ' + Math.round(lc.sqft) +
+                   (parseFloat(it.setup||0) > 0 ? ' + $' + parseFloat(it.setup).toFixed(2) + ' setup' : '');
+        } else if (it.kind === 'speed') {
+          var spU = it.unit === 'hr' ? '/hr' : (it.unit === 'flat' ? '' : '/ea');
+          detail = t.name + ' · $' + parseFloat(it.rate||0).toFixed(4) + spU + ' × ' + (it.qty||0) +
                    (parseFloat(it.setup||0) > 0 ? ' + $' + parseFloat(it.setup).toFixed(2) + ' setup' : '');
         } else if (it.kind === 'press') {
           var per = parseFloat(it.sqft_rate||0) + parseFloat(it.ink_cmyk||0) + (it.white ? parseFloat(it.ink_white||0) : 0);
@@ -1131,6 +1141,27 @@ window.applyRowMaterial = function(tabIdx, itemIdx, value) {
       renderCompEditor();
       return;
     }
+    if (ccModel === 'speed') {
+      // Speed/setup process → one self-labelled row with setup folded in
+      // (no separate Setup line): Setup $ + Rate $ × qty, floored at min.
+      var uRate = 0, uQty = 1, uUnit = 'flat';
+      if (speedPerH > 0 && rate > 0) { uRate = +(rate / speedPerH).toFixed(4); uQty = pieceQty; uUnit = 'ea'; }
+      else if (unitCost > 0) { uRate = unitCost; uQty = pieceQty; uUnit = 'ea'; }
+      else if (minsPerUnit > 0 && rate > 0) { uRate = rate; uQty = +(minsPerUnit * pieceQty / 60).toFixed(4); uUnit = 'hr'; }
+      item.kind = 'speed';
+      item.cost_center_item_id = cc.id;
+      item.material_id = null;
+      item.preset_id = null;
+      item.name = (cc.code ? cc.code + ' — ' : '') + cc.name;
+      item.setup = (setupMin > 0 && rate > 0) ? +(setupMin / 60 * rate).toFixed(2) : 0;
+      item.rate = uRate;
+      item.qty = uQty;
+      item.unit = uUnit;
+      item.min_charge = minCharge;
+      delete item.method;
+      renderCompEditor();
+      return;
+    }
     item.cost_center_item_id = cc.id;
     item.material_id = null;
     item.preset_id = null;
@@ -1224,7 +1255,7 @@ function renderProcessTab(c, idx) {
   if (tab.items.length) {
     // Press/digital/lamination render as self-labelled boxes; the grid header
     // only makes sense when at least one plain grid row is present.
-    var hasGridRow = tab.items.some(function(it){ return it.kind !== 'press' && it.kind !== 'digital' && it.kind !== 'lamination' && it.kind !== 'outside' && it.kind !== 'sqft'; });
+    var hasGridRow = tab.items.some(function(it){ return it.kind !== 'press' && it.kind !== 'digital' && it.kind !== 'lamination' && it.kind !== 'outside' && it.kind !== 'sqft' && it.kind !== 'speed'; });
     var headerCols = hasLib
       ? '<span>Process name</span><span>Material</span><span>Method</span><span>Rate ($)</span><span>Qty</span><span style="text-align:right">Total</span><span></span>'
       : '<span>Process / item</span><span>Method</span><span>Rate ($)</span><span>Qty</span><span style="text-align:right">Total</span><span></span>';
@@ -1289,6 +1320,23 @@ function renderProcessTab(c, idx) {
           qf('Sq Ft $', 'sqft_rate', item.sqft_rate, 78, 4) +
           qf('Min $', 'min_charge', item.min_charge, 60, 2) +
           '<div style="text-align:right;min-width:86px"><div class="lbl">Total</div><div class="row-total" style="font-weight:600">$' + sqTotal.toFixed(2) + '</div><div style="font-size:10px;color:#aaa">' + (sqMinHit ? '$'+parseFloat(item.min_charge).toFixed(2)+' minimum' : (sqft>0 ? ('$'+parseFloat(item.sqft_rate||0).toFixed(4)+'/sqft × '+Math.round(sqft)+(parseFloat(item.setup||0)>0?' + $'+parseFloat(item.setup).toFixed(2)+' setup':'')) : 'set layout sq ft')) + '</div></div>' +
+          '<button class="del-btn" onclick="deleteItem(' + idx + ',' + i + ')">×</button>' +
+        '</div>';
+        return;
+      }
+      if (item.kind === 'speed') {
+        var spTotal = calcItemTotal(item, sqft, sheets);
+        var spMinHit = parseFloat(item.min_charge||0) > spTotal - 0.005 && parseFloat(item.min_charge||0) > 0;
+        var spBase = parseFloat(item.rate||0) * parseFloat(item.qty||0);
+        var spUnit = item.unit === 'hr' ? '/hr' : (item.unit === 'flat' ? '' : '/ea');
+        var sf = function(label, key, val, w, dec, step){ return '<div><div class="lbl">' + label + '</div><input type="number" step="' + step + '" value="' + (parseFloat(val||0)).toFixed(dec) + '" onchange="updatePressField(' + idx + ',' + i + ',\'' + key + '\',this.value)" style="width:' + w + 'px;text-align:right"></div>'; };
+        rowsHTML += '<div style="grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px;padding:9px 10px;border:1px solid #e8e6e2;border-radius:8px;margin-bottom:6px;background:#fafafa">' +
+          '<div style="flex:1;min-width:150px"><div class="lbl">Process</div><input value="' + escHtml(item.name||'') + '" onchange="updatePressField(' + idx + ',' + i + ',\'name\',this.value)" style="width:100%"></div>' +
+          sf('Setup $', 'setup', item.setup, 70, 2, '0.01') +
+          sf('Rate $' + spUnit, 'rate', item.rate, 78, 4, '0.0001') +
+          sf('Qty', 'qty', item.qty, 62, (item.unit==='hr'?2:0), (item.unit==='hr'?'0.01':'1')) +
+          sf('Min $', 'min_charge', item.min_charge, 56, 2, '0.5') +
+          '<div style="text-align:right;min-width:86px"><div class="lbl">Total</div><div class="row-total" style="font-weight:600">$' + spTotal.toFixed(2) + '</div><div style="font-size:10px;color:#aaa">' + (spMinHit ? '$'+parseFloat(item.min_charge).toFixed(2)+' minimum' : ('$'+parseFloat(item.rate||0).toFixed(4)+spUnit+' × '+(parseFloat(item.qty||0))+(parseFloat(item.setup||0)>0?' + $'+parseFloat(item.setup).toFixed(2)+' setup':''))) + '</div></div>' +
           '<button class="del-btn" onclick="deleteItem(' + idx + ',' + i + ')">×</button>' +
         '</div>';
         return;
